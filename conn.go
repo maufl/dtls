@@ -1,11 +1,9 @@
 package dtls
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"log"
 	"net"
-	"time"
 )
 
 const UDP_MAX_SIZE = 64 * 1024
@@ -18,13 +16,9 @@ type Conn struct {
 }
 
 func NewConn(c *net.UDPConn) *Conn {
-	var randomBytes = [28]byte{}
-	if _, err := rand.Read(randomBytes[:]); err != nil {
-		panic(err)
-	}
 	return &Conn{
 		UDPConn: c,
-		random:  Random{GMTUnixTime: uint32(time.Now().Unix()), Opaque: randomBytes},
+		random:  NewRandom(),
 	}
 }
 
@@ -49,6 +43,12 @@ func (c *Conn) ReadRecord() (Record, error) {
 				return Record{}, err
 			}
 			handshake.AssembledFragment = helloVerifyRequest
+		} else if handshake.MsgType == ServerHello {
+			serverHello, err := ReadHandshakeServerHello(record.Fragment[12:])
+			if err != nil {
+				return Record{}, err
+			}
+			handshake.AssembledFragment = serverHello
 		}
 		record.ParsedFragment = handshake
 	}
@@ -72,8 +72,8 @@ func (c *Conn) SendClientHello(Cookie []byte) error {
 		Cookie:        Cookie,
 		CipherSuites: []CipherSuite{
 			TLS_NULL_WITH_NULL_NULL,
-			TLS_DH_ANON_WITH_AES_128_CBC_SHA,
-			TLS_DH_ANON_AES_256_CBC_SHA256,
+			TLS_DH_anon_WITH_AES_128_CBC_SHA,
+			TLS_DH_anon_WITH_AES_256_CBC_SHA256,
 		},
 		CompressionMethods: []CompressionMethod{
 			CompressionNone,
