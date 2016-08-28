@@ -1,7 +1,8 @@
 package dtls
 
 import (
-	"encoding/binary"
+	"bytes"
+	"errors"
 	"fmt"
 )
 
@@ -18,36 +19,52 @@ func (sh HandshakeServerHello) String() string {
 	return fmt.Sprintf("ServerHello{ ServerVersion: %s, Random: %s, SessionID: %x, CipherSuite: %s, CompressionMethod: %s }", sh.ServerVersion, sh.Random, sh.SessionID, sh.CipherSuite, sh.CompressionMethod)
 }
 
-func ReadHandshakeServerHello(buffer []byte) (hsh HandshakeServerHello, err error) {
-	if len(buffer) < 35 {
+func (sh HandshakeServerHello) Bytes() []byte {
+	buffer := &bytes.Buffer{}
+	buffer.Write(sh.ServerVersion.Bytes())
+	buffer.Write(sh.Random.Bytes())
+	buffer.Write(sh.SessionID)
+	buffer.Write(sh.CipherSuite.Bytes())
+	buffer.Write(sh.CompressionMethod.Bytes())
+	for _, extension := range sh.Extensions {
+		buffer.Write(extension.Bytes())
+	}
+	return buffer.Bytes()
+}
+
+func ReadHandshakeServerHello(buffer *bytes.Buffer) (hsh HandshakeServerHello, err error) {
+	if buffer.Len() < 35 {
+		return hsh, errors.New("Buffer does not contain all bytes of server hello")
+	}
+	if hsh.ServerVersion, err = ReadProtocolVersion(buffer); err != nil {
+		return
+	}
+	if hsh.Random, err = ReadRandom(buffer); err != nil {
+		return
+	}
+	sessionIdLength, err := buffer.ReadByte()
+	if err != nil {
+		return
+	}
+	if buffer.Len() < int(sessionIdLength) {
 		return hsh, InvalidHandshakeError
 	}
-	if hsh.ServerVersion, err = ReadProtocolVersion(buffer[0], buffer[1]); err != nil {
+	hsh.SessionID = buffer.Next(int(sessionIdLength))
+	if hsh.CipherSuite, err = ReadCipherSuite(buffer); err != nil {
 		return
 	}
-	if hsh.Random, err = ReadRandom(buffer[2:34]); err != nil {
+	if hsh.CompressionMethod, err = ReadCompressionMethod(buffer); err != nil {
 		return
 	}
-	sessionIdLength := uint(buffer[34])
-	hsh.SessionID = buffer[35 : sessionIdLength+35]
-	currentByte := sessionIdLength + 35
-	if hsh.CipherSuite, err = ReadCipherSuite(buffer[currentByte], buffer[currentByte+1]); err != nil {
-		return
-	}
-	currentByte += 2
-	if hsh.CompressionMethod, err = ReadCompressionMethod(buffer[currentByte]); err != nil {
-		return
-	}
-	currentByte += 1
-	// TODO: does this field exist if there are no extensions?
-	numExtensions := int(binary.BigEndian.Uint16(buffer[currentByte : currentByte+2]))
-	hsh.Extensions = make([]Extension, numExtensions)
-	currentByte += 2
-	for i := 0; i < numExtensions; i++ {
-		if hsh.Extensions[i], err = ReadExtension(buffer[currentByte:]); err != nil {
-			return
+	if buffer.Len() > 2 {
+		// TODO: does this field exist if there are no extensions?
+		numExtensions := ReadUint16(buffer)
+		hsh.Extensions = make([]Extension, int(numExtensions))
+		for i := 0; i < int(numExtensions); i++ {
+			if hsh.Extensions[i], err = ReadExtension(buffer); err != nil {
+				return
+			}
 		}
-		currentByte += hsh.Extensions[i].Consumes()
 	}
 	return
 }

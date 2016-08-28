@@ -14,11 +14,8 @@ func (et ExtensionType) Bytes() []byte {
 	return buffer
 }
 
-func ReadExtensionType(buffer []byte) (ExtensionType, error) {
-	if len(buffer) != 2 {
-		panic("Called ReadExtensionType with wrongly sized buffer")
-	}
-	n := binary.BigEndian.Uint16(buffer)
+func ReadExtensionType(buffer *bytes.Buffer) (ExtensionType, error) {
+	n := ReadUint16(buffer)
 	switch n {
 	case 13:
 		return ExtensionSignatureAlgorithms, nil
@@ -40,18 +37,18 @@ type Extension struct {
 
 var InvalidExtensionError = errors.New("Invalid extension")
 
-func ReadExtension(buffer []byte) (e Extension, err error) {
-	if len(buffer) < 4 {
+func ReadExtension(buffer *bytes.Buffer) (e Extension, err error) {
+	if buffer.Len() < 4 {
 		return e, InvalidExtensionError
 	}
-	if e.Type, err = ReadExtensionType(buffer[:2]); err != nil {
+	if e.Type, err = ReadExtensionType(buffer); err != nil {
 		return
 	}
-	dataSize := int(binary.BigEndian.Uint16(buffer[2:4]))
-	if len(buffer) < 4+dataSize {
+	dataSize := int(ReadUint16(buffer))
+	if buffer.Len() < dataSize {
 		return e, InvalidExtensionError
 	}
-	e.Data = buffer[4:dataSize]
+	e.Data = buffer.Next(dataSize)
 	return
 }
 

@@ -1,6 +1,7 @@
 package dtls
 
 import (
+	"bytes"
 	"fmt"
 )
 
@@ -9,21 +10,32 @@ type HandshakeHelloVerifyRequest struct {
 	Cookie        []byte
 }
 
+func (hvr HandshakeHelloVerifyRequest) Bytes() []byte {
+	b := make([]byte, 0, len(hvr.Cookie)+3)
+	b = append(b, hvr.ServerVersion.Bytes()...)
+	b = append(b, byte(len(hvr.Cookie)))
+	b = append(b, hvr.Cookie...)
+	return b
+}
+
 func (hvr HandshakeHelloVerifyRequest) String() string {
 	return fmt.Sprintf("HelloVerifyRequest{ ServerVersion: %s, Cookie: %x }", hvr.ServerVersion, hvr.Cookie)
 }
 
-func ReadHandshakeHelloVerifyRequest(buffer []byte) (hvr HandshakeHelloVerifyRequest, err error) {
-	if len(buffer) < 2 {
+func ReadHandshakeHelloVerifyRequest(buffer *bytes.Buffer) (hvr HandshakeHelloVerifyRequest, err error) {
+	if buffer.Len() < 3 {
 		return hvr, InvalidHandshakeError
 	}
-	if hvr.ServerVersion, err = ReadProtocolVersion(buffer[0], buffer[1]); err != nil {
+	if hvr.ServerVersion, err = ReadProtocolVersion(buffer); err != nil {
 		return
 	}
-	cookieLength := int(buffer[2])
-	if len(buffer) != cookieLength+3 {
+	cookieLength, err := buffer.ReadByte()
+	if err != nil {
+		return
+	}
+	if buffer.Len() < int(cookieLength) {
 		return hvr, InvalidHandshakeError
 	}
-	hvr.Cookie = buffer[3:]
+	hvr.Cookie = buffer.Next(int(cookieLength))
 	return
 }

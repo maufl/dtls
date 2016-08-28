@@ -1,18 +1,31 @@
 package dtls
 
 import (
-	"encoding/hex"
-	"log"
+	"bytes"
+	_ "encoding/hex"
+	_ "log"
 	"net"
 )
 
 const UDP_MAX_SIZE = 64 * 1024
 
+type SecurityParameters struct {
+	CipherSuite
+	CompressionMethod
+	MasterSecret [48]byte
+	ClientRandom Random
+	ServerRandom Random
+}
+
 type Conn struct {
 	*net.UDPConn
-	sequenceNumber uint64
-	random         Random
-	sessionID      []byte
+	sequenceNumber    uint64
+	random            Random
+	sessionID         []byte
+	currentReadState  SecurityParameters
+	currentWriteState SecurityParameters
+	pendingReadState  SecurityParameters
+	pendingWriteState SecurityParameters
 }
 
 func NewConn(c *net.UDPConn) *Conn {
@@ -23,43 +36,40 @@ func NewConn(c *net.UDPConn) *Conn {
 }
 
 func (c *Conn) ReadRecord() (Record, error) {
-	buffer := make([]byte, UDP_MAX_SIZE)
-	bytes, _, err := c.UDPConn.ReadFrom(buffer)
+	slice := make([]byte, UDP_MAX_SIZE)
+	n, _, err := c.UDPConn.ReadFrom(slice)
 	if err != nil {
 		return Record{}, err
 	}
-	record, err := ReadRecord(buffer[:bytes])
+	buffer := bytes.NewBuffer(slice[:n])
+	record, err := ReadRecord(buffer)
 	if err != nil {
 		return Record{}, err
 	}
-	if record.Type == TypeHandshake {
-		handshake, err := ReadHandshake(record.Fragment[:12])
-		if err != nil {
-			return Record{}, err
-		}
+	if handshake, ok := record.Payload.(Handshake); ok {
+		handshakeBuffer := bytes.NewBuffer(handshake.Fragment)
 		if handshake.MsgType == HelloVerifyRequest {
-			helloVerifyRequest, err := ReadHandshakeHelloVerifyRequest(record.Fragment[12:])
+			helloVerifyRequest, err := ReadHandshakeHelloVerifyRequest(handshakeBuffer)
 			if err != nil {
 				return Record{}, err
 			}
-			handshake.AssembledFragment = helloVerifyRequest
+			handshake.Payload = helloVerifyRequest
 		} else if handshake.MsgType == ServerHello {
-			serverHello, err := ReadHandshakeServerHello(record.Fragment[12:])
+			serverHello, err := ReadHandshakeServerHello(handshakeBuffer)
 			if err != nil {
 				return Record{}, err
 			}
-			handshake.AssembledFragment = serverHello
+			handshake.Payload = serverHello
 		}
-		record.ParsedFragment = handshake
 	}
 	return record, nil
 }
 
 func (c *Conn) SendRecord(r Record) error {
-	log.Printf("Sending record: %s\n", r)
+	//log.Printf("Sending record: %s\n", r)
 	recordBytes := r.Bytes()
-	log.Println("Record is")
-	log.Println("\n" + hex.Dump(recordBytes))
+	//log.Println("Record is")
+	//log.Println("\n" + hex.Dump(recordBytes))
 	_, err := c.UDPConn.Write(recordBytes)
 	return err
 }
@@ -81,12 +91,12 @@ func (c *Conn) SendClientHello(Cookie []byte) error {
 	}
 	clientHelloBytes := clientHello.Bytes()
 	handshake := Handshake{
-		MsgType:           ClientHello,
-		Length:            uint32(len(clientHelloBytes)),
-		MessageSeq:        0,
-		FragmentOffset:    0,
-		FragmentLength:    uint32(len(clientHelloBytes)),
-		AssembledFragment: clientHello,
+		MsgType:        ClientHello,
+		Length:         uint32(len(clientHelloBytes)),
+		MessageSeq:     0,
+		FragmentOffset: 0,
+		FragmentLength: uint32(len(clientHelloBytes)),
+		Payload:        clientHello,
 	}
 	handshakeBytes := handshake.Bytes()
 	record := Record{
@@ -94,9 +104,8 @@ func (c *Conn) SendClientHello(Cookie []byte) error {
 		Version:        DTLS_10,
 		Epoch:          0,
 		SequenceNumber: c.sequenceNumber,
-		Length:         uint16(len(handshakeBytes) + len(clientHelloBytes)),
-		Fragment:       append(handshakeBytes, clientHelloBytes...),
-		ParsedFragment: handshake,
+		Length:         uint16(len(handshakeBytes)),
+		Payload:        handshake,
 	}
 	c.sequenceNumber += 1
 	return c.SendRecord(record)

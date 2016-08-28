@@ -1,6 +1,7 @@
 package dtls
 
 import (
+	"bytes"
 	"errors"
 )
 
@@ -14,9 +15,11 @@ const (
 	CompressionNone CompressionMethod = 0
 )
 
-func ReadCompressionMethod(b byte) (CompressionMethod, error) {
-	if b == 0 {
+func ReadCompressionMethod(buffer *bytes.Buffer) (CompressionMethod, error) {
+	if b, err := buffer.ReadByte(); err == nil && b == 0 {
 		return CompressionNone, nil
+	} else if err != nil {
+		return 0, err
 	}
 	return 0, InvalidCompressionError
 }

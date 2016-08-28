@@ -25,8 +25,8 @@ func main() {
 		log.Fatalf("Unable to read record: %v\n", err)
 	}
 	log.Printf("%s\n", record)
-	handshake := record.ParsedFragment.(dtls.Handshake)
-	helloVerifyRequest := handshake.AssembledFragment.(dtls.HandshakeHelloVerifyRequest)
+	handshake := record.Payload.(dtls.Handshake)
+	helloVerifyRequest := handshake.Payload.(dtls.HandshakeHelloVerifyRequest)
 	err = dtlsConn.SendClientHello(helloVerifyRequest.Cookie)
 	if err != nil {
 		log.Fatalf("Unable to send hello message: %v\n", err)
@@ -36,4 +36,17 @@ func main() {
 		log.Fatalf("Unable to read record: %v\n", err)
 	}
 	log.Printf("%s\n", record)
+	record, err = dtlsConn.ReadRecord()
+	if err != nil {
+		log.Fatalf("Unable to read record: %v\n", err)
+	}
+	log.Printf("%s\n", record)
+	handshake = record.Payload.(dtls.Handshake)
+	_ = handshake.Payload.(dtls.HandshakeServerKeyExchange)
+	record, err = dtlsConn.ReadRecord()
+	if err != nil {
+		log.Fatalf("Unable to read record: %v\n", err)
+	}
+	log.Printf("%s\n", record)
+
 }

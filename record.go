@@ -37,7 +37,11 @@ func (t ContentType) String() string {
 
 var ContentTypeError error = errors.New("Unknown content type")
 
-func ReadContentType(b byte) (ContentType, error) {
+func ReadContentType(buffer *bytes.Buffer) (ct ContentType, err error) {
+	b, err := buffer.ReadByte()
+	if err != nil {
+		return
+	}
 	switch b {
 	case 20:
 		return TypeChangeChiperSpec, nil
@@ -77,13 +81,21 @@ func (v ProtocolVersion) Bytes() []byte {
 
 var ProtocolVersionError error = errors.New("Unknown protocol version")
 
-func ReadProtocolVersion(maj, min byte) (ProtocolVersion, error) {
-	if maj == 254 && min == 253 {
-		return DTLS_12, nil
-	} else if maj == 254 && min == 255 {
-		return DTLS_10, nil
+func ReadProtocolVersion(buffer *bytes.Buffer) (pv ProtocolVersion, err error) {
+	if pv.Major, err = buffer.ReadByte(); err != nil {
+		return
 	}
-	return ProtocolVersion{}, ProtocolVersionError
+	if pv.Minor, err = buffer.ReadByte(); err != nil {
+		return
+	}
+	switch pv {
+	case DTLS_12:
+		return DTLS_12, nil
+	case DTLS_10:
+		return DTLS_10, nil
+	default:
+		return pv, ProtocolVersionError
+	}
 }
 
 type Record struct {
@@ -92,8 +104,7 @@ type Record struct {
 	Epoch          uint16
 	SequenceNumber uint64
 	Length         uint16
-	Fragment       []byte
-	ParsedFragment interface{}
+	Payload        ToBytes
 }
 
 func (r Record) Bytes() []byte {
@@ -109,35 +120,36 @@ func (r Record) Bytes() []byte {
 	b = make([]byte, 2)
 	binary.BigEndian.PutUint16(b, r.Length)
 	buffer.Write(b)
-	return append(buffer.Bytes(), r.Fragment...)
+	return append(buffer.Bytes(), r.Payload.Bytes()...)
 }
 
-var InvalidRecord error = errors.New("InvalidRecord")
+var InvalidRecordError = errors.New("InvalidRecord")
 
-func ReadRecord(buffer []byte) (r Record, e error) {
-	if len(buffer) < 13 {
-		return r, InvalidRecord
+func ReadRecord(buffer *bytes.Buffer) (r Record, err error) {
+	if buffer.Len() < 13 {
+		return r, errors.New("Not enough bytes to read header")
 	}
-	t, err := ReadContentType(buffer[0])
-	if err != nil {
-		return r, err
+	if r.Type, err = ReadContentType(buffer); err != nil {
+		return
 	}
-	r.Type = t
-	v, err := ReadProtocolVersion(buffer[1], buffer[2])
-	if err != nil {
-		return r, err
+	if r.Version, err = ReadProtocolVersion(buffer); err != nil {
+		return
 	}
-	r.Version = v
-	r.Epoch = binary.BigEndian.Uint16(buffer[3:5])
-	r.SequenceNumber = binary.BigEndian.Uint64(append([]byte{0, 0}, buffer[5:11]...))
-	r.Length = binary.BigEndian.Uint16(buffer[11:13])
-	if len(buffer) < int(r.Length)+13 {
-		return r, InvalidRecord
+	r.Epoch = ReadUint16(buffer)
+	r.SequenceNumber = ReadUint48(buffer)
+	r.Length = ReadUint16(buffer)
+	if buffer.Len() < int(r.Length) {
+		return r, InvalidRecordError
 	}
-	r.Fragment = buffer[13:]
-	return r, nil
+	switch r.Type {
+	case TypeHandshake:
+		r.Payload, err = ReadHandshake(buffer)
+	default:
+		return r, InvalidRecordError
+	}
+	return
 }
 
 func (r Record) String() string {
-	return fmt.Sprintf("Record{ Type: %s, ProtocolVersion: %s, Epoch: %d, SequenceNumber: %d, Length: %d, \n\t%s\n }", r.Type, r.Version, r.Epoch, r.SequenceNumber, r.Length, r.ParsedFragment)
+	return fmt.Sprintf("Record{ Type: %s, ProtocolVersion: %s, Epoch: %d, SequenceNumber: %d, Length: %d, \n\t%s\n }", r.Type, r.Version, r.Epoch, r.SequenceNumber, r.Length, r.Payload)
 }

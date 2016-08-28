@@ -1,13 +1,15 @@
 package dtls
 
 import (
+	"bytes"
 	"errors"
 )
 
 type CipherSuite [2]byte
 
-func ReadCipherSuite(high, low byte) (CipherSuite, error) {
-	switch (CipherSuite{high, low}) {
+func ReadCipherSuite(buffer *bytes.Buffer) (cs CipherSuite, err error) {
+	copy(cs[:], buffer.Next(2))
+	switch cs {
 	case TLS_NULL_WITH_NULL_NULL:
 		return TLS_NULL_WITH_NULL_NULL, nil
 	case TLS_DHE_RSA_WITH_AES_128_CBC_SHA:

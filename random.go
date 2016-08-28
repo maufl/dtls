@@ -1,6 +1,7 @@
 package dtls
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
@@ -20,13 +21,13 @@ func NewRandom() (r Random) {
 	return
 }
 
-func ReadRandom(buffer []byte) (r Random, err error) {
-	if len(buffer) != 32 {
-		panic("Called ReadRandom with wrongly sized buffer")
+func ReadRandom(buffer *bytes.Buffer) (r Random, err error) {
+	if buffer.Len() < 32 {
+		return r, InvalidHandshakeError
 	}
-	t := binary.BigEndian.Uint32(buffer[0:4])
+	t := ReadUint32(buffer)
 	r.GMTUnixTime = time.Unix(int64(t), 0)
-	copy(r.Opaque[:], buffer[4:32])
+	copy(r.Opaque[:], buffer.Next(28))
 	return
 }
 
