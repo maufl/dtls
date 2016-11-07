@@ -2,6 +2,7 @@ package dtls
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 )
 
@@ -20,10 +21,16 @@ func (cdhp ClientDiffieHellmanPublic) String() string {
 }
 
 func (cdhp ClientDiffieHellmanPublic) Bytes() []byte {
-	buffer := &bytes.Buffer{}
-	return buffer.Bytes()
+	buffer := make([]byte, 2+len(cdhp.PublicKey))
+	binary.BigEndian.PutUint16(buffer, uint16(len(cdhp.PublicKey)))
+	copy(buffer[2:], cdhp.PublicKey)
+	return buffer
 }
 
 type HandshakeClientKeyExchange struct {
 	ClientDiffieHellmanPublic
+}
+
+func (ckx HandshakeClientKeyExchange) String() string {
+	return fmt.Sprintf("ClientKeyExchange{ PublicKey: %v }", ckx.PublicKey)
 }

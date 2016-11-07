@@ -10,7 +10,7 @@ type HandshakeServerHello struct {
 	ServerVersion     ProtocolVersion
 	Random            Random
 	SessionID         []byte
-	CipherSuite       CipherSuite
+	CipherSuite       *CipherSuite
 	CompressionMethod CompressionMethod
 	Extensions        []Extension
 }

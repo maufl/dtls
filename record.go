@@ -10,7 +10,7 @@ import (
 type ContentType byte
 
 const (
-	TypeChangeChiperSpec ContentType = 20
+	TypeChangeCipherSpec ContentType = 20
 	TypeAlert                        = 21
 	TypeHandshake                    = 22
 	TypeApplicationData              = 23
@@ -22,8 +22,8 @@ func (ct ContentType) Bytes() []byte {
 
 func (t ContentType) String() string {
 	switch t {
-	case TypeChangeChiperSpec:
-		return "ChangeChiperSpec"
+	case TypeChangeCipherSpec:
+		return "ChangeCipherSpec"
 	case TypeAlert:
 		return "Alert"
 	case TypeHandshake:
@@ -44,7 +44,7 @@ func ReadContentType(buffer *bytes.Buffer) (ct ContentType, err error) {
 	}
 	switch b {
 	case 20:
-		return TypeChangeChiperSpec, nil
+		return TypeChangeCipherSpec, nil
 	case 21:
 		return TypeAlert, nil
 	case 22:
