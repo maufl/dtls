@@ -62,9 +62,9 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 		c.pendingWriteState.Mac = c.pendingWriteState.CipherSuite.mac(clientMAC)
 		c.sendChangeCipherSpec()
 		c.currentWriteState = c.pendingWriteState
-		c.pendingWriteState = SecurityParameters{}
+		//c.pendingWriteState = SecurityParameters{}
 
-		finishedMessage = new(HandshakeFinished)
+		finishedMessage := new(HandshakeFinished)
 		finishedMessage.VerifyData = c.finishedHash.clientSum(masterSecret)
 		c.finishedHash.Write(finishedMessage.Bytes())
 		c.sendFinished(finishedMessage)
@@ -90,7 +90,7 @@ func (c *Conn) sendClientHello() error {
 	handshake := Handshake{
 		MsgType:        ClientHello,
 		Length:         uint32(len(clientHelloBytes)),
-		MessageSeq:     0,
+		MessageSeq:     c.handshakeSequenceNumber,
 		FragmentOffset: 0,
 		FragmentLength: uint32(len(clientHelloBytes)),
 		Payload:        clientHello,
@@ -104,6 +104,7 @@ func (c *Conn) sendClientHello() error {
 		Length:         uint16(len(handshakeBytes)),
 		Payload:        handshake,
 	}
+	c.handshakeSequenceNumber += 1
 	c.sequenceNumber += 1
 	return c.SendRecord(record)
 }
@@ -113,7 +114,7 @@ func (c *Conn) sendClientKeyExchange(handshakeMessage ToBytes) error {
 	handshake := Handshake{
 		MsgType:        ClientKeyExchange,
 		Length:         uint32(len(handshakeMessageBytes)),
-		MessageSeq:     0,
+		MessageSeq:     c.handshakeSequenceNumber,
 		FragmentOffset: 0,
 		FragmentLength: uint32(len(handshakeMessageBytes)),
 		Payload:        handshakeMessage,
@@ -127,16 +128,17 @@ func (c *Conn) sendClientKeyExchange(handshakeMessage ToBytes) error {
 		Length:         uint16(len(handshakeBytes)),
 		Payload:        handshake,
 	}
+	c.handshakeSequenceNumber += 1
 	c.sequenceNumber += 1
 	return c.SendRecord(record)
 }
 
 func (c *Conn) sendFinished(message ToBytes) error {
-	messageBytes = message.Bytes()
+	messageBytes := message.Bytes()
 	handshake := Handshake{
 		MsgType:        Finished,
 		Length:         uint32(len(messageBytes)),
-		MessageSeq:     0,
+		MessageSeq:     c.handshakeSequenceNumber,
 		FragmentOffset: 0,
 		FragmentLength: uint32(len(messageBytes)),
 		Payload:        message,
@@ -150,6 +152,7 @@ func (c *Conn) sendFinished(message ToBytes) error {
 		Length:         uint16(len(handshakeBytes)),
 		Payload:        handshake,
 	}
+	c.handshakeSequenceNumber += 1
 	c.sequenceNumber += 1
 	return c.SendRecord(record)
 }

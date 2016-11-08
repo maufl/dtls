@@ -2,7 +2,8 @@ package dtls
 
 import (
 	"bytes"
-	_ "encoding/hex"
+	"crypto/cipher"
+	"encoding/binary"
 	"log"
 	"net"
 )
@@ -16,20 +17,21 @@ type SecurityParameters struct {
 	MasterSecret [48]byte
 	ClientRandom Random
 	ServerRandom Random
-	Cipher       interface{}
+	Cipher       cipher.BlockMode
 	Mac          macFunction
 }
 
 type Conn struct {
 	*net.UDPConn
-	cookie            []byte
-	sequenceNumber    uint64
-	sessionID         []byte
-	finishedHash      finishedHash
-	currentReadState  SecurityParameters
-	currentWriteState SecurityParameters
-	pendingReadState  SecurityParameters
-	pendingWriteState SecurityParameters
+	cookie                  []byte
+	sequenceNumber          uint64
+	handshakeSequenceNumber uint16
+	sessionID               []byte
+	finishedHash            finishedHash
+	currentReadState        SecurityParameters
+	currentWriteState       SecurityParameters
+	pendingReadState        SecurityParameters
+	pendingWriteState       SecurityParameters
 }
 
 func NewConn(c *net.UDPConn) *Conn {
@@ -73,9 +75,59 @@ func (c *Conn) ReadRecord() (Record, error) {
 
 func (c *Conn) SendRecord(r Record) error {
 	log.Printf("Sending record: %s\n", r)
+	if err := c.MACRecord(r); err != nil {
+		log.Printf("Error while MACing record: %s\n", err)
+		return err
+	}
+	if err := c.EncryptRecord(r); err != nil {
+		log.Printf("Error while Encrypting record: %s\n", err)
+		return err
+	}
 	recordBytes := r.Bytes()
 	//log.Println("Record is")
 	//log.Println("\n" + hex.Dump(recordBytes))
 	_, err := c.UDPConn.Write(recordBytes)
 	return err
+}
+
+func (c *Conn) MACRecord(r Record) error {
+	if c.currentWriteState.Mac != nil {
+		if r.PayloadRaw == nil {
+			r.PayloadRaw = r.Payload.Bytes()
+		}
+		seq := make([]byte, 8)
+		len := make([]byte, 2)
+		binary.BigEndian.PutUint64(seq, r.SequenceNumber)
+		binary.BigEndian.PutUint16(len, r.Length)
+		mac := c.currentWriteState.Mac.MAC(seq, r.Type.Bytes(), r.Version.Bytes(), len, r.PayloadRaw)
+		r.PayloadRaw = append(r.PayloadRaw, mac...)
+	}
+	return nil
+}
+
+func (c *Conn) EncryptRecord(r Record) error {
+	ciph := c.currentWriteState.Cipher
+	if ciph != nil {
+		padded := padToBlockSize(r.PayloadRaw, ciph.BlockSize())
+		ciph.CryptBlocks(padded, padded)
+		r.PayloadRaw = padded
+		r.Length = uint16(len(padded))
+	}
+	return nil
+}
+
+// padToBlockSize calculates the needed padding block, if any, for a payload.
+// On exit, prefix aliases payload and extends to the end of the last full
+// block of payload. finalBlock is a fresh slice which contains the contents of
+// any suffix of payload as well as the needed padding to make finalBlock a
+// full block.
+func padToBlockSize(payload []byte, blockSize int) (padded []byte) {
+	overrun := len(payload) % blockSize
+	paddingLen := blockSize - overrun
+	padded = make([]byte, len(payload)+paddingLen)
+	copy(padded, payload)
+	for i := len(payload); i < len(payload)+paddingLen; i++ {
+		padded[i] = byte(paddingLen - 1)
+	}
+	return
 }

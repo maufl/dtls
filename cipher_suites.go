@@ -29,7 +29,7 @@ type CipherSuite struct {
 	// the ClientHello indicated that the client supports an elliptic curve
 	// and point format that we can handle.
 	elliptic bool
-	cipher   func(key, iv []byte, isRead bool) interface{}
+	cipher   func(key, iv []byte, isRead bool) cipher.BlockMode
 	mac      func(macKey []byte) macFunction
 }
 
@@ -73,7 +73,7 @@ func dhKA() KeyAgreement {
 	return new(DHKeyAgreement)
 }
 
-func cipherAES(key, iv []byte, isRead bool) interface{} {
+func cipherAES(key, iv []byte, isRead bool) cipher.BlockMode {
 	block, _ := aes.NewCipher(key)
 	if isRead {
 		return cipher.NewCBCDecrypter(block, iv)
@@ -91,7 +91,7 @@ func macSHA256(key []byte) macFunction {
 
 type macFunction interface {
 	Size() int
-	MAC(digestBuf, seq, data []byte) []byte
+	MAC(seq, typ, version, length, data []byte) []byte
 }
 
 // tls10MAC implements the TLS 1.0 MAC function. RFC 2246, section 6.2.3.
@@ -103,11 +103,14 @@ func (s tls10MAC) Size() int {
 	return s.h.Size()
 }
 
-func (s tls10MAC) MAC(digestBuf, seq, record []byte) []byte {
+func (s tls10MAC) MAC(seq, typ, version, length, record []byte) []byte {
 	s.h.Reset()
 	s.h.Write(seq)
+	s.h.Write(typ)
+	s.h.Write(version)
+	s.h.Write(length)
 	s.h.Write(record)
-	return s.h.Sum(digestBuf[:0])
+	return s.h.Sum(nil)
 }
 
 // A list of the possible cipher suite ids. Taken from

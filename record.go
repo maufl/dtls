@@ -105,6 +105,7 @@ type Record struct {
 	SequenceNumber uint64
 	Length         uint16
 	Payload        ToBytes
+	PayloadRaw     []byte
 }
 
 func (r Record) Bytes() []byte {
@@ -120,7 +121,10 @@ func (r Record) Bytes() []byte {
 	b = make([]byte, 2)
 	binary.BigEndian.PutUint16(b, r.Length)
 	buffer.Write(b)
-	return append(buffer.Bytes(), r.Payload.Bytes()...)
+	if r.PayloadRaw == nil {
+		r.PayloadRaw = r.Payload.Bytes()
+	}
+	return append(buffer.Bytes(), r.PayloadRaw...)
 }
 
 var InvalidRecordError = errors.New("InvalidRecord")
