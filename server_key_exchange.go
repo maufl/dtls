@@ -13,10 +13,10 @@ type ServerDHParams struct {
 }
 
 func ReadServerDHParams(buffer *bytes.Buffer) (sdhp ServerDHParams, err error) {
-	gLength := ReadUint16(buffer)
-	sdhp.G = buffer.Next(int(gLength))
 	pLength := ReadUint16(buffer)
 	sdhp.P = buffer.Next(int(pLength))
+	gLength := ReadUint16(buffer)
+	sdhp.G = buffer.Next(int(gLength))
 	pubKeyLength := ReadUint16(buffer)
 	sdhp.PublicKey = buffer.Next(int(pubKeyLength))
 	return

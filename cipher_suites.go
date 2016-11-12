@@ -29,7 +29,7 @@ type CipherSuite struct {
 	// the ClientHello indicated that the client supports an elliptic curve
 	// and point format that we can handle.
 	elliptic bool
-	cipher   func(key, iv []byte, isRead bool) cipher.BlockMode
+	cipher   func(key []byte) cipher.Block
 	mac      func(macKey []byte) macFunction
 }
 
@@ -73,12 +73,12 @@ func dhKA() KeyAgreement {
 	return new(DHKeyAgreement)
 }
 
-func cipherAES(key, iv []byte, isRead bool) cipher.BlockMode {
-	block, _ := aes.NewCipher(key)
-	if isRead {
-		return cipher.NewCBCDecrypter(block, iv)
+func cipherAES(key []byte) cipher.Block {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err)
 	}
-	return cipher.NewCBCEncrypter(block, iv)
+	return block
 }
 
 func macSHA1(key []byte) macFunction {

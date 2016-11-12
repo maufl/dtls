@@ -157,6 +157,16 @@ func (h Handshake) Bytes() []byte {
 	return buffer.Bytes()
 }
 
+func (h Handshake) VerifyBytes() []byte {
+	buffer := bytes.Buffer{}
+	buffer.Write(h.MsgType.Bytes())
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, h.Length)
+	buffer.Write(b[1:])
+	buffer.Write(h.Payload.Bytes())
+	return buffer.Bytes()
+}
+
 func (h Handshake) String() string {
 	return fmt.Sprintf("Handshake{ Type: %s, Length: %d, MessageSeq: %d, FragmentOffset: %d, FragmentLength: %d, \n\t%s\n }", h.MsgType, h.Length, h.MessageSeq, h.FragmentOffset, h.FragmentLength, h.Payload)
 }

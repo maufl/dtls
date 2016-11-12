@@ -6,8 +6,9 @@ import (
 )
 
 func (c *Conn) handleHandshakeRecord(handshake Handshake) {
+	c.finishedHash.Write(handshake.VerifyBytes())
+	log.Printf("Writing %s to finished hash", handshake.MsgType)
 	handshakeBuffer := bytes.NewBuffer(handshake.Fragment)
-	c.finishedHash.Write(handshakeBuffer.Bytes())
 	switch handshake.MsgType {
 	case HelloVerifyRequest:
 		helloVerifyRequest, err := ReadHandshakeHelloVerifyRequest(handshakeBuffer)
@@ -42,33 +43,26 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 			log.Printf("Error while processing server key exchange: %v", err)
 			return
 		}
-		if err = c.pendingWriteState.KeyAgreement.ProcessServerKeyExchange(c.pendingWriteState.ClientRandom, c.pendingReadState.ServerRandom, serverKeyExchange); err != nil {
-			log.Printf("Error while processing server key exchange: %v", err)
-			return
-		}
 	case ServerHelloDone:
 		preMasterSecret, clientKeyExchange, err := c.pendingReadState.KeyAgreement.GenerateClientKeyExchange()
 		if err != nil {
 			log.Printf("Error while generating client key exchange: %v", err)
 			return
 		}
-		c.finishedHash.Write(clientKeyExchange.Bytes())
 		c.sendClientKeyExchange(clientKeyExchange)
-		masterSecret, clientMAC, serverMAC, clientKey, serverKey, clientIV, serverIV :=
+		masterSecret, clientMAC, serverMAC, clientKey, serverKey :=
 			keysFromPreMasterSecret(preMasterSecret, c.pendingReadState.ClientRandom.Bytes(), c.pendingWriteState.ServerRandom.Bytes(),
-				c.pendingReadState.CipherSuite.macLen, c.pendingReadState.keyLen, c.pendingReadState.ivLen)
-
-		c.pendingWriteState.Cipher = c.pendingWriteState.CipherSuite.cipher(clientKey, clientIV, false /* not for reading */)
+				c.pendingReadState.CipherSuite.macLen, c.pendingReadState.keyLen)
+		c.pendingWriteState.Cipher = c.pendingWriteState.CipherSuite.cipher(clientKey)
 		c.pendingWriteState.Mac = c.pendingWriteState.CipherSuite.mac(clientMAC)
 		c.sendChangeCipherSpec()
 		c.currentWriteState = c.pendingWriteState
-		//c.pendingWriteState = SecurityParameters{}
+		c.pendingWriteState = SecurityParameters{}
 
 		finishedMessage := new(HandshakeFinished)
 		finishedMessage.VerifyData = c.finishedHash.clientSum(masterSecret)
-		c.finishedHash.Write(finishedMessage.Bytes())
 		c.sendFinished(finishedMessage)
-		_, _, _, _ = masterSecret, serverMAC, serverKey, serverIV
+		_, _, _ = masterSecret, serverMAC, serverKey
 		//TODO
 	default:
 	}
@@ -86,7 +80,6 @@ func (c *Conn) sendClientHello() error {
 		},
 	}
 	clientHelloBytes := clientHello.Bytes()
-	c.finishedHash.Write(clientHelloBytes)
 	handshake := Handshake{
 		MsgType:        ClientHello,
 		Length:         uint32(len(clientHelloBytes)),
@@ -96,10 +89,13 @@ func (c *Conn) sendClientHello() error {
 		Payload:        clientHello,
 	}
 	handshakeBytes := handshake.Bytes()
+	c.finishedHash = newFinishedHash()
+	c.finishedHash.Write(handshake.VerifyBytes())
+	log.Printf("Writing %s to finished hash", handshake.MsgType)
 	record := Record{
 		Type:           TypeHandshake,
 		Version:        DTLS_10,
-		Epoch:          0,
+		Epoch:          c.epoch,
 		SequenceNumber: c.sequenceNumber,
 		Length:         uint16(len(handshakeBytes)),
 		Payload:        handshake,
@@ -120,10 +116,12 @@ func (c *Conn) sendClientKeyExchange(handshakeMessage ToBytes) error {
 		Payload:        handshakeMessage,
 	}
 	handshakeBytes := handshake.Bytes()
+	c.finishedHash.Write(handshake.VerifyBytes())
+	log.Printf("Writing %s to finished hash", handshake.MsgType)
 	record := Record{
 		Type:           TypeHandshake,
 		Version:        DTLS_10,
-		Epoch:          0,
+		Epoch:          c.epoch,
 		SequenceNumber: c.sequenceNumber,
 		Length:         uint16(len(handshakeBytes)),
 		Payload:        handshake,
@@ -147,7 +145,7 @@ func (c *Conn) sendFinished(message ToBytes) error {
 	record := Record{
 		Type:           TypeHandshake,
 		Version:        DTLS_10,
-		Epoch:          0,
+		Epoch:          c.epoch,
 		SequenceNumber: c.sequenceNumber,
 		Length:         uint16(len(handshakeBytes)),
 		Payload:        handshake,
@@ -161,11 +159,12 @@ func (c *Conn) sendChangeCipherSpec() error {
 	record := Record{
 		Type:           TypeChangeCipherSpec,
 		Version:        DTLS_10,
-		Epoch:          0,
+		Epoch:          c.epoch,
 		SequenceNumber: c.sequenceNumber,
 		Length:         1,
 		Payload:        ChangeCipherSpec{1},
 	}
 	c.sequenceNumber += 1
+	c.epoch += 1
 	return c.SendRecord(record)
 }

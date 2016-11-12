@@ -76,7 +76,7 @@ var serverFinishedLabel = []byte("server finished")
 // keysFromPreMasterSecret generates the connection keys from the pre master
 // secret, given the lengths of the MAC key, cipher key and IV, as defined in
 // RFC 2246, section 6.3.
-func keysFromPreMasterSecret(preMasterSecret, clientRandom, serverRandom []byte, macLen, keyLen, ivLen int) (masterSecret, clientMAC, serverMAC, clientKey, serverKey, clientIV, serverIV []byte) {
+func keysFromPreMasterSecret(preMasterSecret, clientRandom, serverRandom []byte, macLen, keyLen int) (masterSecret, clientMAC, serverMAC, clientKey, serverKey []byte) {
 	prf := pRF10
 
 	var seed [tlsRandomLength * 2]byte
@@ -88,7 +88,7 @@ func keysFromPreMasterSecret(preMasterSecret, clientRandom, serverRandom []byte,
 	copy(seed[0:len(clientRandom)], serverRandom)
 	copy(seed[len(serverRandom):], clientRandom)
 
-	n := 2*macLen + 2*keyLen + 2*ivLen
+	n := 2*macLen + 2*keyLen
 	keyMaterial := make([]byte, n)
 	prf(keyMaterial, masterSecret, keyExpansionLabel, seed[0:])
 	clientMAC = keyMaterial[:macLen]
@@ -98,10 +98,6 @@ func keysFromPreMasterSecret(preMasterSecret, clientRandom, serverRandom []byte,
 	clientKey = keyMaterial[:keyLen]
 	keyMaterial = keyMaterial[keyLen:]
 	serverKey = keyMaterial[:keyLen]
-	keyMaterial = keyMaterial[keyLen:]
-	clientIV = keyMaterial[:ivLen]
-	keyMaterial = keyMaterial[ivLen:]
-	serverIV = keyMaterial[:ivLen]
 	return
 }
 

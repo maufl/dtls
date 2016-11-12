@@ -3,7 +3,9 @@ package dtls
 import (
 	"bytes"
 	"crypto/cipher"
+	"crypto/rand"
 	"encoding/binary"
+	"io"
 	"log"
 	"net"
 )
@@ -17,7 +19,7 @@ type SecurityParameters struct {
 	MasterSecret [48]byte
 	ClientRandom Random
 	ServerRandom Random
-	Cipher       cipher.BlockMode
+	Cipher       cipher.Block
 	Mac          macFunction
 }
 
@@ -28,6 +30,7 @@ type Conn struct {
 	handshakeSequenceNumber uint16
 	sessionID               []byte
 	finishedHash            finishedHash
+	epoch                   uint16
 	currentReadState        SecurityParameters
 	currentWriteState       SecurityParameters
 	pendingReadState        SecurityParameters
@@ -35,14 +38,15 @@ type Conn struct {
 }
 
 func NewConn(c *net.UDPConn) *Conn {
+	random := NewRandom()
 	dtlsConn := &Conn{
 		UDPConn:      c,
 		finishedHash: newFinishedHash(),
 		pendingReadState: SecurityParameters{
-			ClientRandom: NewRandom(),
+			ClientRandom: random,
 		},
 		pendingWriteState: SecurityParameters{
-			ServerRandom: NewRandom(),
+			ClientRandom: random,
 		},
 	}
 	dtlsConn.sendClientHello()
@@ -66,7 +70,7 @@ func (c *Conn) ReadRecord() (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	log.Printf("Received new record: %s\n", record)
+	//log.Printf("Received new record: %s\n", record)
 	if handshake, ok := record.Payload.(Handshake); ok {
 		c.handleHandshakeRecord(handshake)
 	}
@@ -74,12 +78,12 @@ func (c *Conn) ReadRecord() (Record, error) {
 }
 
 func (c *Conn) SendRecord(r Record) error {
-	log.Printf("Sending record: %s\n", r)
-	if err := c.MACRecord(r); err != nil {
+	//log.Printf("Sending record: %s\n", r)
+	if err := c.MACRecord(&r); err != nil {
 		log.Printf("Error while MACing record: %s\n", err)
 		return err
 	}
-	if err := c.EncryptRecord(r); err != nil {
+	if err := c.EncryptRecord(&r); err != nil {
 		log.Printf("Error while Encrypting record: %s\n", err)
 		return err
 	}
@@ -90,14 +94,16 @@ func (c *Conn) SendRecord(r Record) error {
 	return err
 }
 
-func (c *Conn) MACRecord(r Record) error {
+func (c *Conn) MACRecord(r *Record) error {
 	if c.currentWriteState.Mac != nil {
+		//log.Println("MACing record")
 		if r.PayloadRaw == nil {
 			r.PayloadRaw = r.Payload.Bytes()
 		}
 		seq := make([]byte, 8)
-		len := make([]byte, 2)
 		binary.BigEndian.PutUint64(seq, r.SequenceNumber)
+		binary.BigEndian.PutUint16(seq, r.Epoch)
+		len := make([]byte, 2)
 		binary.BigEndian.PutUint16(len, r.Length)
 		mac := c.currentWriteState.Mac.MAC(seq, r.Type.Bytes(), r.Version.Bytes(), len, r.PayloadRaw)
 		r.PayloadRaw = append(r.PayloadRaw, mac...)
@@ -105,13 +111,24 @@ func (c *Conn) MACRecord(r Record) error {
 	return nil
 }
 
-func (c *Conn) EncryptRecord(r Record) error {
+func (c *Conn) EncryptRecord(r *Record) error {
 	ciph := c.currentWriteState.Cipher
 	if ciph != nil {
-		padded := padToBlockSize(r.PayloadRaw, ciph.BlockSize())
-		ciph.CryptBlocks(padded, padded)
-		r.PayloadRaw = padded
-		r.Length = uint16(len(padded))
+		blockSize := ciph.BlockSize()
+		//log.Println("Encrypting record")
+		if r.PayloadRaw == nil {
+			r.PayloadRaw = r.Payload.Bytes()
+		}
+		padded := padToBlockSize(r.PayloadRaw, blockSize)
+		encrypted := make([]byte, blockSize+len(padded))
+		iv := encrypted[:blockSize]
+		if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+			return err
+		}
+		mode := cipher.NewCBCEncrypter(ciph, iv)
+		mode.CryptBlocks(encrypted[blockSize:], padded)
+		r.PayloadRaw = encrypted
+		r.Length = uint16(len(encrypted))
 	}
 	return nil
 }
