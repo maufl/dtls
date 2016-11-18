@@ -59,6 +59,23 @@ func (c *Conn) Listen() {
 	}
 }
 
+func (c *Conn) Read() (data []byte, err error) {
+	for {
+		record, err := c.ReadRecord()
+		if err != nil {
+			return nil, err
+		}
+		if handshake, ok := record.Payload.(Handshake); ok {
+			c.handleHandshakeRecord(handshake)
+			continue
+		}
+		if record.Type == TypeApplicationData {
+			return record.PayloadRaw, nil
+		}
+		panic("Not implemented")
+	}
+}
+
 func (c *Conn) ReadRecord() (Record, error) {
 	slice := make([]byte, UDP_MAX_SIZE)
 	n, _, err := c.UDPConn.ReadFrom(slice)
@@ -71,10 +88,11 @@ func (c *Conn) ReadRecord() (Record, error) {
 		return Record{}, err
 	}
 	//log.Printf("Received new record: %s\n", record)
-	if handshake, ok := record.Payload.(Handshake); ok {
-		c.handleHandshakeRecord(handshake)
-	}
 	return record, nil
+}
+
+func (c *Conn) Write(data []byte) error {
+	return nil
 }
 
 func (c *Conn) SendRecord(r Record) error {

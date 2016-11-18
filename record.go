@@ -148,6 +148,8 @@ func ReadRecord(buffer *bytes.Buffer) (r Record, err error) {
 	switch r.Type {
 	case TypeHandshake:
 		r.Payload, err = ReadHandshake(buffer)
+	case TypeApplicationData:
+		r.PayloadRaw = buffer.Bytes()
 	default:
 		return r, InvalidRecordError
 	}

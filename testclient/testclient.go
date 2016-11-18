@@ -16,5 +16,5 @@ func main() {
 		log.Fatalf("Unable to connect to remote addr: %v\n", err)
 	}
 	dtlsConn := dtls.NewConn(conn)
-	dtlsConn.Listen()
+	_, _ = dtlsConn.Read()
 }
