@@ -6,8 +6,6 @@ import (
 )
 
 func (c *Conn) handleHandshakeRecord(handshake Handshake) {
-	c.finishedHash.Write(handshake.VerifyBytes())
-	log.Printf("Writing %s to finished hash", handshake.MsgType)
 	handshakeBuffer := bytes.NewBuffer(handshake.Fragment)
 	switch handshake.MsgType {
 	case HelloVerifyRequest:
@@ -19,6 +17,8 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 		c.cookie = helloVerifyRequest.Cookie
 		c.sendClientHello()
 	case ServerHello:
+		c.finishedHash.Write(handshake.Bytes())
+		log.Printf("Writing %s to finished hash", handshake.MsgType)
 		serverHello, err := ReadHandshakeServerHello(handshakeBuffer)
 		if err != nil {
 			log.Printf("Error while reading server hello: %v", err)
@@ -34,6 +34,8 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 		c.pendingWriteState.CompressionMethod = serverHello.CompressionMethod
 		c.sessionID = serverHello.SessionID
 	case ServerKeyExchange:
+		c.finishedHash.Write(handshake.Bytes())
+		log.Printf("Writing %s to finished hash", handshake.MsgType)
 		serverKeyExchange, err := ReadHandshakeServerKeyExchange(handshakeBuffer)
 		if err != nil {
 			log.Printf("Error while reading server key exchange: %v", err)
@@ -44,6 +46,8 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 			return
 		}
 	case ServerHelloDone:
+		c.finishedHash.Write(handshake.Bytes())
+		log.Printf("Writing %s to finished hash", handshake.MsgType)
 		preMasterSecret, clientKeyExchange, err := c.pendingReadState.KeyAgreement.GenerateClientKeyExchange()
 		if err != nil {
 			log.Printf("Error while generating client key exchange: %v", err)
@@ -90,7 +94,7 @@ func (c *Conn) sendClientHello() error {
 	}
 	handshakeBytes := handshake.Bytes()
 	c.finishedHash = newFinishedHash()
-	c.finishedHash.Write(handshake.VerifyBytes())
+	c.finishedHash.Write(handshakeBytes)
 	log.Printf("Writing %s to finished hash", handshake.MsgType)
 	record := Record{
 		Type:           TypeHandshake,
@@ -116,7 +120,7 @@ func (c *Conn) sendClientKeyExchange(handshakeMessage ToBytes) error {
 		Payload:        handshakeMessage,
 	}
 	handshakeBytes := handshake.Bytes()
-	c.finishedHash.Write(handshake.VerifyBytes())
+	c.finishedHash.Write(handshakeBytes)
 	log.Printf("Writing %s to finished hash", handshake.MsgType)
 	record := Record{
 		Type:           TypeHandshake,

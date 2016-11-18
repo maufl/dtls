@@ -130,6 +130,8 @@ func ReadHandshake(buffer *bytes.Buffer) (h Handshake, err error) {
 			h.Payload, err = ReadHandshakeServerKeyExchange(handshakeMessageBuffer)
 		case ServerHelloDone:
 			h.Payload, err = ReadHandshakeServerHelloDone(handshakeMessageBuffer)
+		default:
+			panic("Unhandled handshake message")
 		}
 		if err != nil {
 			return h, err
@@ -152,16 +154,6 @@ func (h Handshake) Bytes() []byte {
 	buffer.Write(b[1:])
 	b = make([]byte, 4)
 	binary.BigEndian.PutUint32(b, h.FragmentLength)
-	buffer.Write(b[1:])
-	buffer.Write(h.Payload.Bytes())
-	return buffer.Bytes()
-}
-
-func (h Handshake) VerifyBytes() []byte {
-	buffer := bytes.Buffer{}
-	buffer.Write(h.MsgType.Bytes())
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, h.Length)
 	buffer.Write(b[1:])
 	buffer.Write(h.Payload.Bytes())
 	return buffer.Bytes()

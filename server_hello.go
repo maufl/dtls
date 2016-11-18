@@ -23,6 +23,7 @@ func (sh HandshakeServerHello) Bytes() []byte {
 	buffer := &bytes.Buffer{}
 	buffer.Write(sh.ServerVersion.Bytes())
 	buffer.Write(sh.Random.Bytes())
+	buffer.WriteByte(byte(len(sh.SessionID)))
 	buffer.Write(sh.SessionID)
 	buffer.Write(sh.CipherSuite.Bytes())
 	buffer.Write(sh.CompressionMethod.Bytes())

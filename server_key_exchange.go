@@ -29,13 +29,13 @@ func (sdhp ServerDHParams) String() string {
 func (sdhp ServerDHParams) Bytes() []byte {
 	buffer := &bytes.Buffer{}
 	t := make([]byte, 2)
-	binary.BigEndian.PutUint16(t, uint16(len(sdhp.G)))
-	buffer.Write(t)
-	buffer.Write(sdhp.G)
-	t = make([]byte, 2)
 	binary.BigEndian.PutUint16(t, uint16(len(sdhp.P)))
 	buffer.Write(t)
 	buffer.Write(sdhp.P)
+	t = make([]byte, 2)
+	binary.BigEndian.PutUint16(t, uint16(len(sdhp.G)))
+	buffer.Write(t)
+	buffer.Write(sdhp.G)
 	t = make([]byte, 2)
 	binary.BigEndian.PutUint16(t, uint16(len(sdhp.PublicKey)))
 	buffer.Write(t)
@@ -49,6 +49,9 @@ type HandshakeServerKeyExchange struct {
 
 func ReadHandshakeServerKeyExchange(buffer *bytes.Buffer) (ske HandshakeServerKeyExchange, err error) {
 	ske.Params, err = ReadServerDHParams(buffer)
+	if err != nil {
+		panic("Unparsable server key exchange message")
+	}
 	return
 }
 
