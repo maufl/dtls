@@ -108,6 +108,16 @@ type Record struct {
 	PayloadRaw     []byte
 }
 
+func BuildRecordHeader(typ ContentType, version ProtocolVersion, epoch uint16, sequenceNumber uint64, length uint16) (header []byte) {
+	header = make([]byte, 13)
+	header[0] = byte(typ)
+	copy(header[1:], version.Bytes())
+	binary.BigEndian.PutUint64(header[3:], sequenceNumber)
+	binary.BigEndian.PutUint16(header[3:], epoch)
+	binary.BigEndian.PutUint16(header[11:], length)
+	return
+}
+
 func (r Record) Bytes() []byte {
 	buffer := bytes.Buffer{}
 	buffer.Write(r.Type.Bytes())

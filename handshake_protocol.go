@@ -2,7 +2,9 @@ package dtls
 
 import (
 	"bytes"
+	"fmt"
 	"log"
+	"os"
 )
 
 func (c *Conn) handleHandshakeRecord(handshake Handshake) {
@@ -57,6 +59,7 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 		masterSecret, clientMAC, serverMAC, clientKey, serverKey :=
 			keysFromPreMasterSecret(preMasterSecret, c.pendingReadState.ClientRandom.Bytes(), c.pendingWriteState.ServerRandom.Bytes(),
 				c.pendingReadState.CipherSuite.macLen, c.pendingReadState.keyLen)
+		logMasterSecret(c.pendingReadState.ClientRandom.Bytes(), masterSecret)
 		c.pendingWriteState.Cipher = c.pendingWriteState.CipherSuite.cipher(clientKey)
 		c.pendingWriteState.Mac = c.pendingWriteState.CipherSuite.mac(clientMAC)
 		c.sendChangeCipherSpec()
@@ -95,18 +98,8 @@ func (c *Conn) sendClientHello() error {
 	handshakeBytes := handshake.Bytes()
 	c.finishedHash = newFinishedHash()
 	c.finishedHash.Write(handshakeBytes)
-	log.Printf("Writing %s to finished hash", handshake.MsgType)
-	record := Record{
-		Type:           TypeHandshake,
-		Version:        DTLS_10,
-		Epoch:          c.epoch,
-		SequenceNumber: c.sequenceNumber,
-		Length:         uint16(len(handshakeBytes)),
-		Payload:        handshake,
-	}
 	c.handshakeSequenceNumber += 1
-	c.sequenceNumber += 1
-	return c.SendRecord(record)
+	return c.SendRecord(TypeHandshake, handshakeBytes)
 }
 
 func (c *Conn) sendClientKeyExchange(handshakeMessage ToBytes) error {
@@ -121,18 +114,8 @@ func (c *Conn) sendClientKeyExchange(handshakeMessage ToBytes) error {
 	}
 	handshakeBytes := handshake.Bytes()
 	c.finishedHash.Write(handshakeBytes)
-	log.Printf("Writing %s to finished hash", handshake.MsgType)
-	record := Record{
-		Type:           TypeHandshake,
-		Version:        DTLS_10,
-		Epoch:          c.epoch,
-		SequenceNumber: c.sequenceNumber,
-		Length:         uint16(len(handshakeBytes)),
-		Payload:        handshake,
-	}
 	c.handshakeSequenceNumber += 1
-	c.sequenceNumber += 1
-	return c.SendRecord(record)
+	return c.SendRecord(TypeHandshake, handshakeBytes)
 }
 
 func (c *Conn) sendFinished(message ToBytes) error {
@@ -146,29 +129,23 @@ func (c *Conn) sendFinished(message ToBytes) error {
 		Payload:        message,
 	}
 	handshakeBytes := handshake.Bytes()
-	record := Record{
-		Type:           TypeHandshake,
-		Version:        DTLS_10,
-		Epoch:          c.epoch,
-		SequenceNumber: c.sequenceNumber,
-		Length:         uint16(len(handshakeBytes)),
-		Payload:        handshake,
-	}
 	c.handshakeSequenceNumber += 1
-	c.sequenceNumber += 1
-	return c.SendRecord(record)
+	return c.SendRecord(TypeHandshake, handshakeBytes)
 }
 
 func (c *Conn) sendChangeCipherSpec() error {
-	record := Record{
-		Type:           TypeChangeCipherSpec,
-		Version:        DTLS_10,
-		Epoch:          c.epoch,
-		SequenceNumber: c.sequenceNumber,
-		Length:         1,
-		Payload:        ChangeCipherSpec{1},
-	}
-	c.sequenceNumber += 1
 	c.epoch += 1
-	return c.SendRecord(record)
+	return c.SendRecord(TypeChangeCipherSpec, []byte{1})
+}
+
+func logMasterSecret(clientRandom, masterSecret []byte) {
+	f, err := os.OpenFile("/home/maufl/.dtls-secrets", os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		log.Printf("Unable to open log file for DTLS master secret: %s", err)
+		return
+	}
+	defer f.Close()
+	if _, err = f.WriteString(fmt.Sprintf("CLIENT_RANDOM %x %x\n", clientRandom, masterSecret)); err != nil {
+		log.Printf("Unable to write master secret to log file: %s", err)
+	}
 }

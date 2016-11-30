@@ -31,6 +31,7 @@ type Conn struct {
 	sessionID               []byte
 	finishedHash            finishedHash
 	epoch                   uint16
+	version                 ProtocolVersion
 	currentReadState        SecurityParameters
 	currentWriteState       SecurityParameters
 	pendingReadState        SecurityParameters
@@ -41,6 +42,7 @@ func NewConn(c *net.UDPConn) *Conn {
 	random := NewRandom()
 	dtlsConn := &Conn{
 		UDPConn:      c,
+		version:      DTLS_10,
 		finishedHash: newFinishedHash(),
 		pendingReadState: SecurityParameters{
 			ClientRandom: random,
@@ -51,12 +53,6 @@ func NewConn(c *net.UDPConn) *Conn {
 	}
 	dtlsConn.sendClientHello()
 	return dtlsConn
-}
-
-func (c *Conn) Listen() {
-	for {
-		c.ReadRecord()
-	}
 }
 
 func (c *Conn) Read() (data []byte, err error) {
@@ -95,60 +91,52 @@ func (c *Conn) Write(data []byte) error {
 	return nil
 }
 
-func (c *Conn) SendRecord(r Record) error {
-	//log.Printf("Sending record: %s\n", r)
-	if err := c.MACRecord(&r); err != nil {
-		log.Printf("Error while MACing record: %s\n", err)
-		return err
-	}
-	if err := c.EncryptRecord(&r); err != nil {
+func (c *Conn) SendRecord(typ ContentType, payload []byte) error {
+	sequenceNumber := c.sequenceNumber
+	epoch := c.epoch
+	c.sequenceNumber += 1
+	log.Printf("Record before authenticating %x", payload)
+	authenticated := c.MACRecord(typ, epoch, sequenceNumber, payload)
+	log.Printf("Record after authenticationg %x", authenticated)
+	encrypted, err := c.EncryptRecord(authenticated)
+	if err != nil {
 		log.Printf("Error while Encrypting record: %s\n", err)
 		return err
 	}
-	recordBytes := r.Bytes()
-	//log.Println("Record is")
-	//log.Println("\n" + hex.Dump(recordBytes))
-	_, err := c.UDPConn.Write(recordBytes)
+	header := BuildRecordHeader(typ, c.version, epoch, sequenceNumber, uint16(len(encrypted)))
+	recordBytes := append(header, encrypted...)
+	_, err = c.UDPConn.Write(recordBytes)
 	return err
 }
 
-func (c *Conn) MACRecord(r *Record) error {
-	if c.currentWriteState.Mac != nil {
-		//log.Println("MACing record")
-		if r.PayloadRaw == nil {
-			r.PayloadRaw = r.Payload.Bytes()
-		}
-		seq := make([]byte, 8)
-		binary.BigEndian.PutUint64(seq, r.SequenceNumber)
-		binary.BigEndian.PutUint16(seq, r.Epoch)
-		len := make([]byte, 2)
-		binary.BigEndian.PutUint16(len, r.Length)
-		mac := c.currentWriteState.Mac.MAC(seq, r.Type.Bytes(), r.Version.Bytes(), len, r.PayloadRaw)
-		r.PayloadRaw = append(r.PayloadRaw, mac...)
+func (c *Conn) MACRecord(typ ContentType, epoch uint16, sequenceNumber uint64, payload []byte) []byte {
+	if c.currentWriteState.Mac == nil {
+		return payload
 	}
-	return nil
+	seq := make([]byte, 8)
+	binary.BigEndian.PutUint64(seq, sequenceNumber)
+	binary.BigEndian.PutUint16(seq, epoch)
+	length := make([]byte, 2)
+	binary.BigEndian.PutUint16(length, uint16(len(payload)))
+	mac := c.currentWriteState.Mac.MAC(seq, typ.Bytes(), c.version.Bytes(), length, payload)
+	return append(payload, mac...)
 }
 
-func (c *Conn) EncryptRecord(r *Record) error {
+func (c *Conn) EncryptRecord(payload []byte) ([]byte, error) {
 	ciph := c.currentWriteState.Cipher
-	if ciph != nil {
-		blockSize := ciph.BlockSize()
-		//log.Println("Encrypting record")
-		if r.PayloadRaw == nil {
-			r.PayloadRaw = r.Payload.Bytes()
-		}
-		padded := padToBlockSize(r.PayloadRaw, blockSize)
-		encrypted := make([]byte, blockSize+len(padded))
-		iv := encrypted[:blockSize]
-		if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-			return err
-		}
-		mode := cipher.NewCBCEncrypter(ciph, iv)
-		mode.CryptBlocks(encrypted[blockSize:], padded)
-		r.PayloadRaw = encrypted
-		r.Length = uint16(len(encrypted))
+	if ciph == nil {
+		return payload, nil
 	}
-	return nil
+	blockSize := ciph.BlockSize()
+	padded := padToBlockSize(payload, blockSize)
+	encrypted := make([]byte, blockSize+len(padded))
+	iv := encrypted[:blockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, err
+	}
+	mode := cipher.NewCBCEncrypter(ciph, iv)
+	mode.CryptBlocks(encrypted[blockSize:], padded)
+	return encrypted, nil
 }
 
 // padToBlockSize calculates the needed padding block, if any, for a payload.
@@ -164,5 +152,6 @@ func padToBlockSize(payload []byte, blockSize int) (padded []byte) {
 	for i := len(payload); i < len(payload)+paddingLen; i++ {
 		padded[i] = byte(paddingLen - 1)
 	}
+	log.Printf("Record after padding %x", padded)
 	return
 }
