@@ -104,8 +104,7 @@ type Record struct {
 	Epoch          uint16
 	SequenceNumber uint64
 	Length         uint16
-	Payload        ToBytes
-	PayloadRaw     []byte
+	Payload        []byte
 }
 
 func BuildRecordHeader(typ ContentType, version ProtocolVersion, epoch uint16, sequenceNumber uint64, length uint16) (header []byte) {
@@ -131,10 +130,7 @@ func (r Record) Bytes() []byte {
 	b = make([]byte, 2)
 	binary.BigEndian.PutUint16(b, r.Length)
 	buffer.Write(b)
-	if r.PayloadRaw == nil {
-		r.PayloadRaw = r.Payload.Bytes()
-	}
-	return append(buffer.Bytes(), r.PayloadRaw...)
+	return append(buffer.Bytes(), r.Payload...)
 }
 
 var InvalidRecordError = errors.New("InvalidRecord")
@@ -155,14 +151,7 @@ func ReadRecord(buffer *bytes.Buffer) (r Record, err error) {
 	if buffer.Len() < int(r.Length) {
 		return r, InvalidRecordError
 	}
-	switch r.Type {
-	case TypeHandshake:
-		r.Payload, err = ReadHandshake(buffer)
-	case TypeApplicationData:
-		r.PayloadRaw = buffer.Bytes()
-	default:
-		return r, InvalidRecordError
-	}
+	r.Payload = buffer.Bytes()
 	return
 }
 

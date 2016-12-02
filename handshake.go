@@ -130,6 +130,8 @@ func ReadHandshake(buffer *bytes.Buffer) (h Handshake, err error) {
 			h.Payload, err = ReadHandshakeServerKeyExchange(handshakeMessageBuffer)
 		case ServerHelloDone:
 			h.Payload, err = ReadHandshakeServerHelloDone(handshakeMessageBuffer)
+		case Finished:
+			h.Payload, err = ReadHandshakeFinished(handshakeMessageBuffer)
 		default:
 			panic("Unhandled handshake message")
 		}

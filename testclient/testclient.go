@@ -4,6 +4,7 @@ import (
 	"github.com/maufl/dtls"
 	"log"
 	"net"
+	"time"
 )
 
 func main() {
@@ -15,6 +16,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to connect to remote addr: %v\n", err)
 	}
-	dtlsConn := dtls.NewConn(conn)
-	_, _ = dtlsConn.Read()
+	dtlsConn, err := dtls.NewConn(conn)
+	if err != nil {
+		log.Fatalf("Error while opening connection: %s", err)
+	}
+	for {
+		dtlsConn.Write([]byte("Hello World"))
+		bytes, err := dtlsConn.Read()
+		if err != nil {
+			log.Fatalf("Error while reading: %s", err)
+		}
+		log.Printf("Read data: %s", string(bytes))
+		time.Sleep(1 * time.Second)
+	}
 }

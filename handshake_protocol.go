@@ -7,24 +7,24 @@ import (
 	"os"
 )
 
-func (c *Conn) handleHandshakeRecord(handshake Handshake) {
+func (c *Conn) handleHandshakeRecord(handshake Handshake) bool {
 	handshakeBuffer := bytes.NewBuffer(handshake.Fragment)
 	switch handshake.MsgType {
 	case HelloVerifyRequest:
 		helloVerifyRequest, err := ReadHandshakeHelloVerifyRequest(handshakeBuffer)
 		if err != nil {
 			log.Printf("Error while reading hello verify request: %v", err)
-			return
+			return false
 		}
 		c.cookie = helloVerifyRequest.Cookie
 		c.sendClientHello()
+		return false
 	case ServerHello:
 		c.finishedHash.Write(handshake.Bytes())
-		log.Printf("Writing %s to finished hash", handshake.MsgType)
 		serverHello, err := ReadHandshakeServerHello(handshakeBuffer)
 		if err != nil {
 			log.Printf("Error while reading server hello: %v", err)
-			return
+			return false
 		}
 		c.pendingReadState.ServerRandom = serverHello.Random
 		c.pendingWriteState.ServerRandom = serverHello.Random
@@ -35,25 +35,25 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 		c.pendingReadState.CompressionMethod = serverHello.CompressionMethod
 		c.pendingWriteState.CompressionMethod = serverHello.CompressionMethod
 		c.sessionID = serverHello.SessionID
+		return false
 	case ServerKeyExchange:
 		c.finishedHash.Write(handshake.Bytes())
-		log.Printf("Writing %s to finished hash", handshake.MsgType)
 		serverKeyExchange, err := ReadHandshakeServerKeyExchange(handshakeBuffer)
 		if err != nil {
 			log.Printf("Error while reading server key exchange: %v", err)
-			return
+			return false
 		}
 		if err = c.pendingReadState.KeyAgreement.ProcessServerKeyExchange(c.pendingReadState.ClientRandom, c.pendingReadState.ServerRandom, serverKeyExchange); err != nil {
 			log.Printf("Error while processing server key exchange: %v", err)
-			return
+			return false
 		}
+		return false
 	case ServerHelloDone:
 		c.finishedHash.Write(handshake.Bytes())
-		log.Printf("Writing %s to finished hash", handshake.MsgType)
 		preMasterSecret, clientKeyExchange, err := c.pendingReadState.KeyAgreement.GenerateClientKeyExchange()
 		if err != nil {
 			log.Printf("Error while generating client key exchange: %v", err)
-			return
+			return false
 		}
 		c.sendClientKeyExchange(clientKeyExchange)
 		masterSecret, clientMAC, serverMAC, clientKey, serverKey :=
@@ -63,15 +63,19 @@ func (c *Conn) handleHandshakeRecord(handshake Handshake) {
 		c.pendingWriteState.Cipher = c.pendingWriteState.CipherSuite.cipher(clientKey)
 		c.pendingWriteState.Mac = c.pendingWriteState.CipherSuite.mac(clientMAC)
 		c.sendChangeCipherSpec()
-		c.currentWriteState = c.pendingWriteState
-		c.pendingWriteState = SecurityParameters{}
 
 		finishedMessage := new(HandshakeFinished)
 		finishedMessage.VerifyData = c.finishedHash.clientSum(masterSecret)
 		c.sendFinished(finishedMessage)
-		_, _, _ = masterSecret, serverMAC, serverKey
-		//TODO
+		c.finishedHash.Write(finishedMessage.Bytes())
+		c.pendingReadState.Cipher = c.pendingReadState.CipherSuite.cipher(serverKey)
+		c.pendingReadState.Mac = c.pendingReadState.CipherSuite.mac(serverMAC)
+		return false
+	case Finished:
+		log.Println("Handshake finished")
+		return true
 	default:
+		return false
 	}
 }
 
