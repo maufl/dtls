@@ -122,24 +122,34 @@ func (c *Conn) sendClientKeyExchange(handshakeMessage ToBytes) error {
 	return c.SendRecord(TypeHandshake, handshakeBytes)
 }
 
-func (c *Conn) sendFinished(message ToBytes) error {
-	messageBytes := message.Bytes()
-	handshake := Handshake{
-		MsgType:        Finished,
-		Length:         uint32(len(messageBytes)),
-		MessageSeq:     c.handshakeSequenceNumber,
-		FragmentOffset: 0,
-		FragmentLength: uint32(len(messageBytes)),
-		Payload:        message,
+func (c *Conn) sendFinished(message ToBytes) (*Handshake, error) {
+	return c.sendHandshake(Finished, message.Bytes())
+}
+
+func (c *Conn) sendHandshake(typ HandshakeType, handshakeMessage []byte) (*Handshake, error) {
+	handshake := c.makeHandshake(typ, handshakeMessage)
+	if err := c.SendRecord(TypeHandshake, handshake.Bytes()); err != nil {
+		return nil, err
 	}
-	handshakeBytes := handshake.Bytes()
-	c.handshakeSequenceNumber += 1
-	return c.SendRecord(TypeHandshake, handshakeBytes)
+	return handshake, nil
 }
 
 func (c *Conn) sendChangeCipherSpec() error {
 	c.epoch += 1
 	return c.SendRecord(TypeChangeCipherSpec, []byte{1})
+}
+
+func (c *Conn) makeHandshake(typ HandshakeType, handshakeMessage []byte) *Handshake {
+	handshake := &Handshake{
+		MsgType:        typ,
+		Length:         uint32(len(messageBytes)),
+		MessageSeq:     c.handshakeSequenceNumber,
+		FragmentOffset: 0,
+		FragmentLength: uint32(len(messageBytes)),
+		Fragment:       handshakeMessage,
+	}
+	c.handshakeSequenceNumber += 1
+	return handshake
 }
 
 func logMasterSecret(clientRandom, masterSecret []byte) {

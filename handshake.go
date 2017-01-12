@@ -98,7 +98,6 @@ type Handshake struct {
 	FragmentOffset uint32
 	FragmentLength uint32
 	Fragment       []byte
-	Payload        ToBytes
 }
 
 var InvalidHandshakeError = errors.New("Invalid handshake")
@@ -118,27 +117,6 @@ func ReadHandshake(buffer *bytes.Buffer) (h Handshake, err error) {
 		return h, errors.New("Buffer does not contain all bytes of fragment")
 	}
 	h.Fragment = buffer.Next(int(h.FragmentLength))
-	if h.Length == h.FragmentLength {
-		handshakeMessageBuffer := bytes.NewBuffer(h.Fragment)
-		var err error = nil
-		switch h.MsgType {
-		case HelloVerifyRequest:
-			h.Payload, err = ReadHandshakeHelloVerifyRequest(handshakeMessageBuffer)
-		case ServerHello:
-			h.Payload, err = ReadHandshakeServerHello(handshakeMessageBuffer)
-		case ServerKeyExchange:
-			h.Payload, err = ReadHandshakeServerKeyExchange(handshakeMessageBuffer)
-		case ServerHelloDone:
-			h.Payload, err = ReadHandshakeServerHelloDone(handshakeMessageBuffer)
-		case Finished:
-			h.Payload, err = ReadHandshakeFinished(handshakeMessageBuffer)
-		default:
-			panic("Unhandled handshake message")
-		}
-		if err != nil {
-			return h, err
-		}
-	}
 	return
 }
 
@@ -157,7 +135,7 @@ func (h Handshake) Bytes() []byte {
 	b = make([]byte, 4)
 	binary.BigEndian.PutUint32(b, h.FragmentLength)
 	buffer.Write(b[1:])
-	buffer.Write(h.Payload.Bytes())
+	buffer.Write(h.Fragment)
 	return buffer.Bytes()
 }
 

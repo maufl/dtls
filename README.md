@@ -13,3 +13,8 @@ It is not working at all yet, except for the DH_anon handshake.
 * [ ] Implement other cipher suites
 * [ ] Maybe implement extensions
 * [ ] Extend TODO list
+
+## Currently not supported
+Well .. mostly everything, but especially:
+
+* Session resumption

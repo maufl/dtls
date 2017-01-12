@@ -10,13 +10,13 @@ type KeyAgreement interface {
 	GenerateClientKeyExchange() ([]byte, HandshakeClientKeyExchange, error)
 }
 
-type DHKeyAgreement struct {
+type DHEKeyAgreement struct {
 	PrivateKey *dhkx.DHKey
 	PublicKey  *dhkx.DHKey
 	Group      *dhkx.DHGroup
 }
 
-func (ka *DHKeyAgreement) ProcessServerKeyExchange(clientRandom, serverRandom Random, serverKeyExchange HandshakeServerKeyExchange) (err error) {
+func (ka *DHEKeyAgreement) ProcessServerKeyExchange(clientRandom, serverRandom Random, serverKeyExchange HandshakeServerKeyExchange) (err error) {
 	ka.PublicKey = dhkx.NewPublicKey(serverKeyExchange.Params.PublicKey)
 
 	var p, g big.Int
@@ -28,7 +28,7 @@ func (ka *DHKeyAgreement) ProcessServerKeyExchange(clientRandom, serverRandom Ra
 	return
 }
 
-func (ka *DHKeyAgreement) GenerateClientKeyExchange() (preMasterSecret []byte, clientKeyExchange HandshakeClientKeyExchange, err error) {
+func (ka *DHEKeyAgreement) GenerateClientKeyExchange() (preMasterSecret []byte, clientKeyExchange HandshakeClientKeyExchange, err error) {
 	clientKeyExchange.ClientDiffieHellmanPublic.PublicKey = ka.PrivateKey.Bytes()
 	if key, err := ka.Group.ComputeKey(ka.PublicKey, ka.PrivateKey); err == nil {
 		preMasterSecret = key.Bytes()

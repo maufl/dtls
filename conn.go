@@ -14,14 +14,9 @@ import (
 const UDP_MAX_SIZE = 64 * 1024
 
 type SecurityParameters struct {
-	*CipherSuite
 	CompressionMethod
-	KeyAgreement
-	MasterSecret [48]byte
-	ClientRandom Random
-	ServerRandom Random
-	Cipher       cipher.Block
-	Mac          macFunction
+	Cipher cipher.Block
+	Mac    macFunction
 }
 
 type Conn struct {

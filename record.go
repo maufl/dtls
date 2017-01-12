@@ -151,7 +151,7 @@ func ReadRecord(buffer *bytes.Buffer) (r Record, err error) {
 	if buffer.Len() < int(r.Length) {
 		return r, InvalidRecordError
 	}
-	r.Payload = buffer.Bytes()
+	r.Payload = buffer.Next(int(r.Length))
 	return
 }
 

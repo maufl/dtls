@@ -34,8 +34,8 @@ type CipherSuite struct {
 }
 
 var CipherSuites = []*CipherSuite{
-	{TLS_DH_anon_WITH_AES_128_CBC_SHA, 16, 20, 16, dhKA, false, cipherAES, macSHA1},
-	{TLS_DH_anon_WITH_AES_256_CBC_SHA256, 32, 32, 16, dhKA, false, cipherAES, macSHA256},
+	{TLS_DH_anon_WITH_AES_128_CBC_SHA, 16, 20, 16, dheKA, false, cipherAES, macSHA1},
+	{TLS_DH_anon_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, false, cipherAES, macSHA256},
 }
 
 func (cs CipherSuite) Bytes() []byte {
@@ -69,7 +69,7 @@ func ReadCipherSuite(buffer *bytes.Buffer) (*CipherSuite, error) {
 
 var InvalidCipherSuite = errors.New("Invalid cipher suite")
 
-func dhKA() KeyAgreement {
+func dheKA() KeyAgreement {
 	return new(DHKeyAgreement)
 }
 
