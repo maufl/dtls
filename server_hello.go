@@ -33,7 +33,8 @@ func (sh HandshakeServerHello) Bytes() []byte {
 	return buffer.Bytes()
 }
 
-func ReadHandshakeServerHello(buffer *bytes.Buffer) (hsh HandshakeServerHello, err error) {
+func ReadHandshakeServerHello(byts []byte) (hsh HandshakeServerHello, err error) {
+	buffer := bytes.NewBuffer(byts)
 	if buffer.Len() < 35 {
 		return hsh, errors.New("Buffer does not contain all bytes of server hello")
 	}

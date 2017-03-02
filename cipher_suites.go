@@ -70,7 +70,7 @@ func ReadCipherSuite(buffer *bytes.Buffer) (*CipherSuite, error) {
 var InvalidCipherSuite = errors.New("Invalid cipher suite")
 
 func dheKA() KeyAgreement {
-	return new(DHKeyAgreement)
+	return new(DHEKeyAgreement)
 }
 
 func cipherAES(key []byte) cipher.Block {

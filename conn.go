@@ -21,38 +21,31 @@ type SecurityParameters struct {
 
 type Conn struct {
 	*net.UDPConn
-	cookie                  []byte
-	sequenceNumber          uint64
-	handshakeSequenceNumber uint16
-	sessionID               []byte
-	finishedHash            finishedHash
-	epoch                   uint16
-	version                 ProtocolVersion
-	currentReadState        SecurityParameters
-	currentWriteState       SecurityParameters
-	pendingReadState        SecurityParameters
-	pendingWriteState       SecurityParameters
+	sequenceNumber uint64
+	epoch          uint16
+	version        ProtocolVersion
+
+	currentReadState  SecurityParameters
+	currentWriteState SecurityParameters
+	pendingReadState  SecurityParameters
+	pendingWriteState SecurityParameters
+
+	handshakeContext handshakeContext
 }
 
 func NewConn(c *net.UDPConn) (*Conn, error) {
 	random := NewRandom()
 	dtlsConn := &Conn{
-		UDPConn:      c,
-		version:      DTLS_10,
-		finishedHash: newFinishedHash(),
-		pendingReadState: SecurityParameters{
-			ClientRandom: random,
-		},
-		pendingWriteState: SecurityParameters{
-			ClientRandom: random,
-		},
+		UDPConn:          c,
+		version:          DTLS_10,
+		handshakeContext: &clientHandshake{baseHandshakeContext{isServer: false, clientRandom: random}},
 	}
 	err := dtlsConn.handshake()
 	return dtlsConn, err
 }
 
 func (c *Conn) handshake() (err error) {
-	c.sendClientHello()
+	c.handshakeContext.continueHandshake()
 	for {
 		typ, payload, err := c.ReadRecord()
 		if err != nil {
@@ -63,9 +56,9 @@ func (c *Conn) handshake() (err error) {
 			if err != nil {
 				return err
 			}
-			if !c.handleHandshakeRecord(handshake) {
-				continue
-			} else {
+			c.handshakeContext.receiveMessage(&handshake)
+			c.handshakeContext.continueHandshake()
+			if c.handshakeContext.isHandshakeComplete() {
 				break
 			}
 		}
@@ -136,6 +129,11 @@ func (c *Conn) SendRecord(typ ContentType, payload []byte) error {
 		c.pendingWriteState = SecurityParameters{}
 	}
 	return err
+}
+
+func (c *Conn) sendChangeCipherSpec() error {
+	c.epoch += 1
+	return c.SendRecord(TypeChangeCipherSpec, []byte{1})
 }
 
 func (c *Conn) MACRecord(typ ContentType, epoch uint16, sequenceNumber uint64, payload []byte) []byte {

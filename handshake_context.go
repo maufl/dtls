@@ -1,16 +1,24 @@
 package dtls
 
-import ()
+import (
+	"fmt"
+	"log"
+	"os"
+)
 
-type handshakeContext struct {
+type handshakeContext interface {
+	receiveMessage(*Handshake)
+	continueHandshake()
+	isHandshakeComplete() bool
+}
+
+type baseHandshakeContext struct {
 	*Conn
-	CipherSuite
-	*KeyAgreement
 
 	isServer                  bool
 	cookie                    []byte
-	nextReceiveSequenceNumber uint64
-	sequenceNumber            uint64
+	nextReceiveSequenceNumber uint16
+	sequenceNumber            uint16
 	sessionID                 []byte
 	clientRandom              Random
 	serverRandom              Random
@@ -26,7 +34,7 @@ type handshakeContext struct {
 	serverCertificate  *Handshake
 	serverKeyExchange  *Handshake
 	certificateRequest *Handshake
-	severHelloDone     *Handshake
+	serverHelloDone    *Handshake
 
 	//Flight 3
 	clientCertificate *Handshake
@@ -38,67 +46,25 @@ type handshakeContext struct {
 	serverFinished *Handshake
 
 	fragmentBuffer map[uint64][]byte
-	messageBuffer  chan *Handshake
 }
 
-func (hc *handshakeContext) receiveMessage(message *Handshake) {
-	if message.SequenceNumber < hc.nextReceiveSequenceNumber {
-		return
-	}
-	if message.SequenceNumber > hc.nextReceiveSequenceNumber {
-		hc.messageBuffer <- message
+func (hc *baseHandshakeContext) receiveMessage(message *Handshake) {
+	// TODO: Buffer out of order messages
+	if message.MessageSeq != hc.nextReceiveSequenceNumber {
 		return
 	}
 	hc.storeMessage(message)
 	hc.nextReceiveSequenceNumber += 1
-	if hc.isCurrentFlightComplete() {
-		hc.currentFlight += 1
-		hc.doNextFlight()
-		hc.currentFlight += 1
-	}
 }
 
-func (hc *handshakeContext) doNextFlight() {
-	switch hc.currentFlight {
-	case 1:
-		hc.doFlightOne()
-	case 2:
-		hc.doFlightTwo()
-	case 3:
-		hc.doFlightThree()
-	case 4:
-		hc.doFlightFour()
-	default:
-		panic("Impossible handshake state")
-	}
-}
-func (hc *handshakeContext) doFlightTwo() {
-	//TODO
-}
-
-func (hc *handshakeContext) isCurrentFlightComplete() bool {
-	switch hc.currentFlight {
-	case 1:
-		return hc.isFlightOneComplete()
-	case 2:
-		return hc.isFlightTwoComplete()
-	case 3:
-		return hc.isFlightThreeComplete()
-	case 4:
-		return hc.isFlightFourComplete()
-	default:
-		panic("Impossible handshake state")
-	}
-}
-
-func (hc *handshakeContext) storeMessage(message *Handshake) {
-	if hc.currentFlight == 1 && message.Type == ClientHello {
+func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
+	if hc.currentFlight == 1 && message.MsgType == ClientHello {
 		hc.clientHello = message
 		return
 		//TODO: handle out of order handshake messages?
 	}
 	if hc.currentFlight == 2 {
-		switch message.Type {
+		switch message.MsgType {
 		case ServerHello:
 			hc.serverHello = message
 		case Certificate:
@@ -115,7 +81,7 @@ func (hc *handshakeContext) storeMessage(message *Handshake) {
 		return
 	}
 	if hc.currentFlight == 3 {
-		switch message.Type {
+		switch message.MsgType {
 		case Certificate:
 			hc.clientCertificate = message
 		case ClientKeyExchange:
@@ -129,9 +95,38 @@ func (hc *handshakeContext) storeMessage(message *Handshake) {
 		}
 		return
 	}
-	if hc.currentFlight == 4 && message.Type == Finished {
+	if hc.currentFlight == 4 && message.MsgType == Finished {
 		hc.serverFinished = message
 		//TODO: handle out of order handshake messages?
 		return
+	}
+}
+
+func (hc *baseHandshakeContext) buildNextHandshakeMessage(typ HandshakeType, handshakeMessage []byte) *Handshake {
+	handshake := &Handshake{
+		MsgType:        typ,
+		Length:         uint32(len(handshakeMessage)),
+		MessageSeq:     hc.sequenceNumber,
+		FragmentOffset: 0,
+		FragmentLength: uint32(len(handshakeMessage)),
+		Fragment:       handshakeMessage,
+	}
+	hc.sequenceNumber += 1
+	return handshake
+}
+
+func (hc *baseHandshakeContext) sendHandshakeMessage(message *Handshake) {
+	hc.Conn.SendRecord(TypeHandshake, message.Bytes())
+}
+
+func logMasterSecret(clientRandom, masterSecret []byte) {
+	f, err := os.OpenFile("/home/maufl/.dtls-secrets", os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		log.Printf("Unable to open log file for DTLS master secret: %s", err)
+		return
+	}
+	defer f.Close()
+	if _, err = f.WriteString(fmt.Sprintf("CLIENT_RANDOM %x %x\n", clientRandom, masterSecret)); err != nil {
+		log.Printf("Unable to write master secret to log file: %s", err)
 	}
 }

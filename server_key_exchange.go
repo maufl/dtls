@@ -47,7 +47,8 @@ type HandshakeServerKeyExchange struct {
 	Params ServerDHParams
 }
 
-func ReadHandshakeServerKeyExchange(buffer *bytes.Buffer) (ske HandshakeServerKeyExchange, err error) {
+func ReadHandshakeServerKeyExchange(byts []byte) (ske HandshakeServerKeyExchange, err error) {
+	buffer := bytes.NewBuffer(byts)
 	ske.Params, err = ReadServerDHParams(buffer)
 	if err != nil {
 		panic("Unparsable server key exchange message")
