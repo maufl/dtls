@@ -51,6 +51,7 @@ type baseHandshakeContext struct {
 func (hc *baseHandshakeContext) receiveMessage(message *Handshake) {
 	// TODO: Buffer out of order messages
 	if message.MessageSeq != hc.nextReceiveSequenceNumber {
+		log.Printf("Received out of order message, expected %d was %d", hc.nextReceiveSequenceNumber, message.MessageSeq)
 		return
 	}
 	hc.storeMessage(message)

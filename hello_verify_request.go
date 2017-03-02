@@ -22,7 +22,8 @@ func (hvr HandshakeHelloVerifyRequest) String() string {
 	return fmt.Sprintf("HelloVerifyRequest{ ServerVersion: %s, Cookie: %x }", hvr.ServerVersion, hvr.Cookie)
 }
 
-func ReadHandshakeHelloVerifyRequest(buffer *bytes.Buffer) (hvr HandshakeHelloVerifyRequest, err error) {
+func ReadHandshakeHelloVerifyRequest(byts []byte) (hvr HandshakeHelloVerifyRequest, err error) {
+	buffer := bytes.NewBuffer(byts)
 	if buffer.Len() < 3 {
 		return hvr, InvalidHandshakeError
 	}

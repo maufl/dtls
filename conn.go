@@ -36,10 +36,10 @@ type Conn struct {
 func NewConn(c *net.UDPConn) (*Conn, error) {
 	random := NewRandom()
 	dtlsConn := &Conn{
-		UDPConn:          c,
-		version:          DTLS_10,
-		handshakeContext: &clientHandshake{baseHandshakeContext{isServer: false, clientRandom: random}},
+		UDPConn: c,
+		version: DTLS_10,
 	}
+	dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random}}
 	err := dtlsConn.handshake()
 	return dtlsConn, err
 }
@@ -132,8 +132,11 @@ func (c *Conn) SendRecord(typ ContentType, payload []byte) error {
 }
 
 func (c *Conn) sendChangeCipherSpec() error {
-	c.epoch += 1
-	return c.SendRecord(TypeChangeCipherSpec, []byte{1})
+	err := c.SendRecord(TypeChangeCipherSpec, []byte{1})
+	if err == nil {
+		c.epoch += 1
+	}
+	return err
 }
 
 func (c *Conn) MACRecord(typ ContentType, epoch uint16, sequenceNumber uint64, payload []byte) []byte {

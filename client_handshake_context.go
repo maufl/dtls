@@ -8,10 +8,34 @@ type clientHandshake struct {
 	baseHandshakeContext
 }
 
+func (ch *clientHandshake) receiveMessage(message *Handshake) {
+	if ch.currentFlight == 2 && message.MsgType == HelloVerifyRequest {
+		helloVerifyRequest, err := ReadHandshakeHelloVerifyRequest(message.Fragment)
+		if err != nil {
+			panic(err)
+		}
+		ch.cookie = helloVerifyRequest.Cookie
+		ch.sendFlightOne()
+		ch.nextReceiveSequenceNumber += 1
+	} else {
+		ch.baseHandshakeContext.receiveMessage(message)
+	}
+}
+
 func (ch *clientHandshake) continueHandshake() {
 	if ch.currentFlight == 0 {
 		ch.sendFlightOne()
 		ch.currentFlight = 2
+		return
+	}
+	if ch.currentFlight == 2 && ch.isFlightTwoComplete() {
+		ch.sendFlightThree()
+		ch.currentFlight = 4
+		return
+	}
+	if ch.currentFlight == 4 && ch.isFlightFourComplete() {
+		ch.currentFlight = 5
+		return
 	}
 }
 
@@ -86,6 +110,7 @@ func (ch *clientHandshake) prepareFlightThree() {
 	finishedHash.Write(ch.clientHello.Bytes())
 	finishedHash.Write(ch.serverHello.Bytes())
 	finishedHash.Write(ch.serverKeyExchange.Bytes())
+	finishedHash.Write(ch.serverHelloDone.Bytes())
 	finishedHash.Write(ch.clientKeyExchange.Bytes())
 	finishedMessage := new(HandshakeFinished)
 	finishedMessage.VerifyData = finishedHash.clientSum(masterSecret)
@@ -97,4 +122,8 @@ func (ch *clientHandshake) sendFlightThree() {
 	ch.sendHandshakeMessage(ch.clientKeyExchange)
 	ch.Conn.sendChangeCipherSpec()
 	ch.sendHandshakeMessage(ch.clientFinished)
+}
+
+func (ch *clientHandshake) isFlightFourComplete() bool {
+	return ch.serverFinished != nil
 }
