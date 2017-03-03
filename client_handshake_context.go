@@ -1,6 +1,8 @@
 package dtls
 
 import (
+	"bytes"
+	"errors"
 	"log"
 )
 
@@ -30,8 +32,8 @@ func (ch *clientHandshake) continueHandshake(message *Handshake) (complete bool,
 		ch.currentFlight = 4
 		return false, nil
 	}
-	if ch.currentFlight == 4 && ch.isFlightFourComplete() {
-		return true, nil
+	if ch.currentFlight == 4 {
+		return ch.isFlightFourComplete()
 	}
 	return false, nil
 }
@@ -90,6 +92,7 @@ func (ch *clientHandshake) prepareFlightThree() {
 	masterSecret, clientMAC, serverMAC, clientKey, serverKey :=
 		keysFromPreMasterSecret(preMasterSecret, ch.clientRandom.Bytes(), ch.serverRandom.Bytes(),
 			cipherSuite.macLen, cipherSuite.keyLen)
+	ch.masterSecret = masterSecret
 	ch.Conn.pendingWriteState.Cipher = cipherSuite.cipher(clientKey)
 	ch.Conn.pendingWriteState.Mac = cipherSuite.mac(clientMAC)
 	ch.Conn.pendingReadState.Cipher = cipherSuite.cipher(serverKey)
@@ -114,6 +117,23 @@ func (ch *clientHandshake) sendFlightThree() {
 	ch.sendHandshakeMessage(ch.clientFinished)
 }
 
-func (ch *clientHandshake) isFlightFourComplete() bool {
-	return ch.serverFinished != nil
+func (ch *clientHandshake) isFlightFourComplete() (bool, error) {
+	if ch.serverFinished == nil {
+		return false, nil
+	}
+	finishedHash := newFinishedHash()
+	finishedHash.Write(ch.clientHello.Bytes())
+	finishedHash.Write(ch.serverHello.Bytes())
+	finishedHash.Write(ch.serverKeyExchange.Bytes())
+	finishedHash.Write(ch.serverHelloDone.Bytes())
+	finishedHash.Write(ch.clientKeyExchange.Bytes())
+	finishedHash.Write(ch.clientFinished.Bytes())
+	serverFinished, err := ReadHandshakeFinished(ch.serverFinished.Fragment)
+	if err != nil {
+		return true, err
+	}
+	if !bytes.Equal(serverFinished.VerifyData, finishedHash.serverSum(ch.masterSecret)) {
+		err = errors.New("Server sent incorrect verify data")
+	}
+	return true, err
 }

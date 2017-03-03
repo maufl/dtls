@@ -15,13 +15,14 @@ type baseHandshakeContext struct {
 	*Conn
 
 	isServer                  bool
-	cookie                    []byte
 	nextReceiveSequenceNumber uint16
 	sequenceNumber            uint16
+	currentFlight             int
 	sessionID                 []byte
+	cookie                    []byte
 	clientRandom              Random
 	serverRandom              Random
-	currentFlight             int
+	masterSecret              []byte
 
 	//We omit the pre-flight, i.e. HelloVerify because otherwise we would need to keep state
 	//defeating the purpos of HelloVerify

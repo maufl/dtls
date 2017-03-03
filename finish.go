@@ -1,7 +1,6 @@
 package dtls
 
 import (
-	"bytes"
 	"fmt"
 )
 
@@ -9,8 +8,8 @@ type HandshakeFinished struct {
 	VerifyData []byte
 }
 
-func ReadHandshakeFinished(buffer *bytes.Buffer) (f HandshakeFinished, err error) {
-	copy(f.VerifyData, buffer.Bytes())
+func ReadHandshakeFinished(byts []byte) (f HandshakeFinished, err error) {
+	f.VerifyData = byts
 	return
 }
 
