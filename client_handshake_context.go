@@ -8,7 +8,12 @@ type clientHandshake struct {
 	baseHandshakeContext
 }
 
-func (ch *clientHandshake) receiveMessage(message *Handshake) {
+func (ch *clientHandshake) beginHandshake() {
+	ch.sendFlightOne()
+	ch.currentFlight = 2
+}
+
+func (ch *clientHandshake) continueHandshake(message *Handshake) (complete bool, err error) {
 	if ch.currentFlight == 2 && message.MsgType == HelloVerifyRequest {
 		helloVerifyRequest, err := ReadHandshakeHelloVerifyRequest(message.Fragment)
 		if err != nil {
@@ -18,32 +23,17 @@ func (ch *clientHandshake) receiveMessage(message *Handshake) {
 		ch.sendFlightOne()
 		ch.nextReceiveSequenceNumber += 1
 	} else {
-		ch.baseHandshakeContext.receiveMessage(message)
-	}
-}
-
-func (ch *clientHandshake) continueHandshake() {
-	if ch.currentFlight == 0 {
-		ch.sendFlightOne()
-		ch.currentFlight = 2
-		return
+		ch.receiveMessage(message)
 	}
 	if ch.currentFlight == 2 && ch.isFlightTwoComplete() {
 		ch.sendFlightThree()
 		ch.currentFlight = 4
-		return
+		return false, nil
 	}
 	if ch.currentFlight == 4 && ch.isFlightFourComplete() {
-		ch.currentFlight = 5
-		return
+		return true, nil
 	}
-}
-
-func (ch *clientHandshake) isHandshakeComplete() bool {
-	if ch.currentFlight > 4 {
-		return true
-	}
-	return false
+	return false, nil
 }
 
 func (ch *clientHandshake) prepareFlightOne() {

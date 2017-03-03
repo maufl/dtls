@@ -45,7 +45,7 @@ func NewConn(c *net.UDPConn) (*Conn, error) {
 }
 
 func (c *Conn) handshake() (err error) {
-	c.handshakeContext.continueHandshake()
+	c.handshakeContext.beginHandshake()
 	for {
 		typ, payload, err := c.ReadRecord()
 		if err != nil {
@@ -56,10 +56,10 @@ func (c *Conn) handshake() (err error) {
 			if err != nil {
 				return err
 			}
-			c.handshakeContext.receiveMessage(&handshake)
-			c.handshakeContext.continueHandshake()
-			if c.handshakeContext.isHandshakeComplete() {
-				break
+			if complete, err := c.handshakeContext.continueHandshake(&handshake); err != nil {
+				return err
+			} else if complete {
+				return nil
 			}
 		}
 	}

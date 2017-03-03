@@ -7,9 +7,8 @@ import (
 )
 
 type handshakeContext interface {
-	receiveMessage(*Handshake)
-	continueHandshake()
-	isHandshakeComplete() bool
+	beginHandshake()
+	continueHandshake(*Handshake) (bool, error)
 }
 
 type baseHandshakeContext struct {
