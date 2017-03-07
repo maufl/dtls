@@ -16,6 +16,56 @@ type HandshakeClientHello struct {
 	Extensions         []Extension
 }
 
+func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, err error) {
+	buffer = bytes.NewBuffer(data)
+	if clientHello.ClientVersion, err = ReadProtocolVersion(buffer); err != nil {
+		return
+	}
+	if clientHello.Random, err = ReadRandom(buffer); err != nil {
+		return
+	}
+
+	sessionIDLength, err = buffer.ReadByte()
+	if err != nil {
+		return
+	}
+	if int(sessionIDLength) > buffer.Len() {
+		return errors.New("Insufficient data to read session ID")
+	}
+	clientHello.SessionID = buffer.Next(int(sessionIDLength))
+
+	cookieLength, err = buffer.ReadByte()
+	if err != nil {
+		return
+	}
+	if int(cookieLength) > buffer.Len() {
+		return errors.New("Insufficient data to read cookie")
+	}
+	clientHello.Cookie = buffer.Next(int(cookieLength))
+
+	numCipherSuites := ReadUint16(buffer)
+	for i := 0; i < numCipherSuites; i++ {
+		cipherSuite, err = ReadCipherSuite(buffer)
+		if err != nil {
+			return
+		}
+		clientHello.CipherSuites = append(clientHello.CipherSuites, cipherSuite)
+	}
+
+	numCompressionMethods, err = buffer.ReadByte()
+	if err != nil {
+		return
+	}
+	for i := 0; i < int(numCompressionMethods); i++ {
+		compressionMethod, err = ReadCompressionMethod(buffer)
+		if err != nil {
+			return
+		}
+		clientHello.CompressionMethods = append(clientHello.CompressionMethods, compressionMethod)
+	}
+	//TODO: Extensions
+}
+
 func (ch HandshakeClientHello) String() string {
 	return fmt.Sprintf("ClientHello{ ClientVersion: %s, Random: %s, SessionID: %x, Cookie: %x }", ch.ClientVersion, ch.Random, ch.SessionID, ch.Cookie)
 }

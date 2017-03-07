@@ -44,8 +44,6 @@ type baseHandshakeContext struct {
 
 	//Flight 4
 	serverFinished *Handshake
-
-	fragmentBuffer map[uint64][]byte
 }
 
 func (hc *baseHandshakeContext) receiveMessage(message *Handshake) {

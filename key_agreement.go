@@ -8,6 +8,7 @@ import (
 type KeyAgreement interface {
 	ProcessServerKeyExchange(clientRandom, serverRandom Random, serverKeyExchange HandshakeServerKeyExchange) error
 	GenerateClientKeyExchange() ([]byte, HandshakeClientKeyExchange, error)
+	GenerateServerKeyExchante() []byte
 }
 
 type DHEKeyAgreement struct {
