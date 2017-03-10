@@ -70,7 +70,7 @@ func (ch *clientHandshake) prepareFlightThree() {
 	}
 	ch.serverRandom = serverHello.Random
 	cipherSuite := serverHello.CipherSuite
-	keyAgreement := cipherSuite.KeyAgreement()
+	ch.keyAgreement = cipherSuite.KeyAgreement()
 	ch.Conn.pendingReadState.CompressionMethod = serverHello.CompressionMethod
 	ch.Conn.pendingWriteState.CompressionMethod = serverHello.CompressionMethod
 	ch.sessionID = serverHello.SessionID
@@ -79,11 +79,11 @@ func (ch *clientHandshake) prepareFlightThree() {
 		log.Printf("Error while reading server key exchange: %v", err)
 		return
 	}
-	if err = keyAgreement.ProcessServerKeyExchange(ch.clientRandom, ch.serverRandom, serverKeyExchange); err != nil {
+	if err = ch.keyAgreement.ProcessServerKeyExchange(ch.clientRandom, ch.serverRandom, serverKeyExchange); err != nil {
 		log.Printf("Error while processing server key exchange: %v", err)
 		return
 	}
-	preMasterSecret, clientKeyExchange, err := keyAgreement.GenerateClientKeyExchange()
+	preMasterSecret, clientKeyExchange, err := ch.keyAgreement.GenerateClientKeyExchange()
 	if err != nil {
 		log.Printf("Error while generating client key exchange: %v", err)
 		return
@@ -99,14 +99,14 @@ func (ch *clientHandshake) prepareFlightThree() {
 	ch.Conn.pendingReadState.Mac = cipherSuite.mac(serverMAC)
 	logMasterSecret(ch.clientRandom.Bytes(), masterSecret)
 
-	finishedHash := newFinishedHash()
-	finishedHash.Write(ch.clientHello.Bytes())
-	finishedHash.Write(ch.serverHello.Bytes())
-	finishedHash.Write(ch.serverKeyExchange.Bytes())
-	finishedHash.Write(ch.serverHelloDone.Bytes())
-	finishedHash.Write(ch.clientKeyExchange.Bytes())
+	ch.finishedHash = newFinishedHash()
+	ch.finishedHash.Write(ch.clientHello.Bytes())
+	ch.finishedHash.Write(ch.serverHello.Bytes())
+	ch.finishedHash.Write(ch.serverKeyExchange.Bytes())
+	ch.finishedHash.Write(ch.serverHelloDone.Bytes())
+	ch.finishedHash.Write(ch.clientKeyExchange.Bytes())
 	finishedMessage := new(HandshakeFinished)
-	finishedMessage.VerifyData = finishedHash.clientSum(masterSecret)
+	finishedMessage.VerifyData = ch.finishedHash.clientSum(masterSecret)
 	ch.clientFinished = ch.buildNextHandshakeMessage(Finished, finishedMessage.Bytes())
 }
 
@@ -121,18 +121,12 @@ func (ch *clientHandshake) isFlightFourComplete() (bool, error) {
 	if ch.serverFinished == nil {
 		return false, nil
 	}
-	finishedHash := newFinishedHash()
-	finishedHash.Write(ch.clientHello.Bytes())
-	finishedHash.Write(ch.serverHello.Bytes())
-	finishedHash.Write(ch.serverKeyExchange.Bytes())
-	finishedHash.Write(ch.serverHelloDone.Bytes())
-	finishedHash.Write(ch.clientKeyExchange.Bytes())
-	finishedHash.Write(ch.clientFinished.Bytes())
 	serverFinished, err := ReadHandshakeFinished(ch.serverFinished.Fragment)
 	if err != nil {
 		return true, err
 	}
-	if !bytes.Equal(serverFinished.VerifyData, finishedHash.serverSum(ch.masterSecret)) {
+	ch.finishedHash.Write(ch.clientFinished.Bytes())
+	if !bytes.Equal(serverFinished.VerifyData, ch.finishedHash.serverSum(ch.masterSecret)) {
 		err = errors.New("Server sent incorrect verify data")
 	}
 	return true, err

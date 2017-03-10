@@ -31,6 +31,17 @@ type HandshakeClientKeyExchange struct {
 	ClientDiffieHellmanPublic
 }
 
+func ReadClientKeyExchange(data []byte) (ckx HandshakeClientKeyExchange, err error) {
+	buf := bytes.NewBuffer(data)
+	params, err := ReadClientDiffieHellmanPublic(buf)
+	if err != nil {
+		return
+	}
+	return HandshakeClientKeyExchange{
+		ClientDiffieHellmanPublic: params,
+	}, nil
+}
+
 func (ckx HandshakeClientKeyExchange) String() string {
 	return fmt.Sprintf("ClientKeyExchange{ PublicKey: %v }", ckx.PublicKey)
 }

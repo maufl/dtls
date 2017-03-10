@@ -20,9 +20,12 @@ type baseHandshakeContext struct {
 	currentFlight             int
 	sessionID                 []byte
 	cookie                    []byte
+	cipherSuite               CipherSuite
 	clientRandom              Random
 	serverRandom              Random
+	keyAgreement              KeyAgreement
 	masterSecret              []byte
+	finishedHash              finishedHash
 
 	//We omit the pre-flight, i.e. HelloVerify because otherwise we would need to keep state
 	//defeating the purpos of HelloVerify

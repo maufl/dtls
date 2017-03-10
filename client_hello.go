@@ -3,6 +3,7 @@ package dtls
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -17,7 +18,7 @@ type HandshakeClientHello struct {
 }
 
 func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, err error) {
-	buffer = bytes.NewBuffer(data)
+	buffer := bytes.NewBuffer(data)
 	if clientHello.ClientVersion, err = ReadProtocolVersion(buffer); err != nil {
 		return
 	}
@@ -25,45 +26,48 @@ func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, er
 		return
 	}
 
-	sessionIDLength, err = buffer.ReadByte()
+	sessionIDLength, err := buffer.ReadByte()
 	if err != nil {
 		return
 	}
 	if int(sessionIDLength) > buffer.Len() {
-		return errors.New("Insufficient data to read session ID")
+		err = errors.New("Insufficient data to read session ID")
+		return
 	}
 	clientHello.SessionID = buffer.Next(int(sessionIDLength))
 
-	cookieLength, err = buffer.ReadByte()
+	cookieLength, err := buffer.ReadByte()
 	if err != nil {
 		return
 	}
 	if int(cookieLength) > buffer.Len() {
-		return errors.New("Insufficient data to read cookie")
+		err = errors.New("Insufficient data to read cookie")
+		return
 	}
 	clientHello.Cookie = buffer.Next(int(cookieLength))
 
-	numCipherSuites := ReadUint16(buffer)
+	numCipherSuites := int(ReadUint16(buffer))
 	for i := 0; i < numCipherSuites; i++ {
-		cipherSuite, err = ReadCipherSuite(buffer)
+		cipherSuite, err := ReadCipherSuite(buffer)
 		if err != nil {
-			return
+			return clientHello, err
 		}
 		clientHello.CipherSuites = append(clientHello.CipherSuites, cipherSuite)
 	}
 
-	numCompressionMethods, err = buffer.ReadByte()
+	numCompressionMethods, err := buffer.ReadByte()
 	if err != nil {
 		return
 	}
 	for i := 0; i < int(numCompressionMethods); i++ {
-		compressionMethod, err = ReadCompressionMethod(buffer)
+		compressionMethod, err := ReadCompressionMethod(buffer)
 		if err != nil {
-			return
+			return clientHello, err
 		}
 		clientHello.CompressionMethods = append(clientHello.CompressionMethods, compressionMethod)
 	}
 	//TODO: Extensions
+	return
 }
 
 func (ch HandshakeClientHello) String() string {
