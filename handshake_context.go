@@ -78,6 +78,7 @@ func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
 		case ServerHelloDone:
 			hc.serverHelloDone = message
 		default:
+			log.Printf("Unable to store received handshake message!")
 			//TODO: how do we handle invalid handshake messages?
 		}
 		return
@@ -93,6 +94,7 @@ func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
 		case Finished:
 			hc.clientFinished = message
 		default:
+			log.Printf("Unable to store received handshake message!")
 			//TODO: how do we handle invalid handshake messages?
 		}
 		return
@@ -102,6 +104,7 @@ func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
 		//TODO: handle out of order handshake messages?
 		return
 	}
+	log.Printf("Unable to store received handshake message!")
 }
 
 func (hc *baseHandshakeContext) buildNextHandshakeMessage(typ HandshakeType, handshakeMessage []byte) *Handshake {
@@ -121,14 +124,20 @@ func (hc *baseHandshakeContext) sendHandshakeMessage(message *Handshake) {
 	hc.Conn.SendRecord(TypeHandshake, message.Bytes())
 }
 
-func logMasterSecret(clientRandom, masterSecret []byte) {
+func logMasterSecret(random, masterSecret []byte, server bool) {
 	f, err := os.OpenFile("/home/maufl/.dtls-secrets", os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		log.Printf("Unable to open log file for DTLS master secret: %s", err)
 		return
 	}
 	defer f.Close()
-	if _, err = f.WriteString(fmt.Sprintf("CLIENT_RANDOM %x %x\n", clientRandom, masterSecret)); err != nil {
+	var prefix string
+	if server {
+		prefix = "SERVER_RANDOM"
+	} else {
+		prefix = "CLIENT_RANDOM"
+	}
+	if _, err = f.WriteString(fmt.Sprintf("%s %x %x\n", prefix, random, masterSecret)); err != nil {
 		log.Printf("Unable to write master secret to log file: %s", err)
 	}
 }

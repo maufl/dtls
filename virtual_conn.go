@@ -1,7 +1,6 @@
 package dtls
 
 import (
-	"errors"
 	"net"
 	"time"
 )
@@ -28,12 +27,8 @@ func (c *VirtualConn) Receive(b []byte) {
 }
 
 func (c *VirtualConn) Read(b []byte) (n int, err error) {
-	select {
-	case record := <-c.in:
-		return copy(b, record), nil
-	case <-time.After(time.Until(c.readDeadline)):
-		return 0, errors.New("Timeout")
-	}
+	record := <-c.in
+	return copy(b, record), nil
 }
 
 func (c *VirtualConn) Write(b []byte) (n int, err error) {

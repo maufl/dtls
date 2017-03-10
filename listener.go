@@ -1,19 +1,20 @@
 package dtls
 
 import (
+	"log"
 	"net"
 )
 
 type Listener struct {
 	net.PacketConn
 
-	connections map[net.Addr]*VirtualConn
+	connections map[string]*VirtualConn
 }
 
 func NewListener(c net.PacketConn) *Listener {
 	return &Listener{
 		PacketConn:  c,
-		connections: make(map[net.Addr]*VirtualConn),
+		connections: make(map[string]*VirtualConn),
 	}
 }
 
@@ -21,16 +22,21 @@ func (l *Listener) Accept() (net.Conn, error) {
 	for {
 		buffer := make([]byte, UDP_MAX_SIZE)
 		n, addr, err := l.ReadFrom(buffer)
+		log.Printf("Read new packet in listener")
 		if err != nil {
+			log.Printf("Error while reading from socekt: %s", err)
 			return nil, err
 		}
-		if conn, ok := l.connections[addr]; ok {
+		if conn, ok := l.connections[addr.String()]; ok {
+			log.Printf("Forwarding packet to virtual connection")
 			go conn.Receive(buffer[:n])
 			continue
 		}
+		log.Printf("Creating new connection for packet from %s", addr)
 		virtualConn := NewVirtualConn(l, l.LocalAddr(), addr)
 		go virtualConn.Receive(buffer[:n])
-		return NewConn(virtualConn, true)
+		l.connections[addr.String()] = virtualConn
+		return NewConn(virtualConn, true), nil
 	}
 }
 

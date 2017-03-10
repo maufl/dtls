@@ -21,9 +21,10 @@ type SecurityParameters struct {
 
 type Conn struct {
 	net.Conn
-	sequenceNumber uint64
-	epoch          uint16
-	version        ProtocolVersion
+	sequenceNumber    uint64
+	epoch             uint16
+	version           ProtocolVersion
+	handshakeComplete bool
 
 	currentReadState  SecurityParameters
 	currentWriteState SecurityParameters
@@ -31,10 +32,12 @@ type Conn struct {
 	pendingWriteState SecurityParameters
 
 	handshakeContext handshakeContext
+
+	recordQueue []*Record
 }
 
-func NewConn(c net.Conn, server bool) (net.Conn, error) {
-	random := NewRandom()
+func NewConn(c net.Conn, server bool) net.Conn {
+	log.Printf("Opening new DTLS conenction")
 	dtlsConn := &Conn{
 		Conn:    c,
 		version: DTLS_10,
@@ -42,35 +45,46 @@ func NewConn(c net.Conn, server bool) (net.Conn, error) {
 	if server {
 		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true}}
 	} else {
+		random := NewRandom()
 		dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random}}
 	}
-	err := dtlsConn.handshake()
-	return dtlsConn, err
+	return dtlsConn
 }
 
 func (c *Conn) handshake() (err error) {
+	log.Printf("Begin handshake")
 	c.handshakeContext.beginHandshake()
 	for {
+		log.Printf("Wait to read record")
 		typ, payload, err := c.ReadRecord()
 		if err != nil {
 			return err
 		}
-		if typ == TypeHandshake {
-			handshake, err := ReadHandshake(bytes.NewBuffer(payload))
-			if err != nil {
-				return err
-			}
-			if complete, err := c.handshakeContext.continueHandshake(&handshake); err != nil {
-				return err
-			} else if complete {
-				return nil
-			}
+		if typ != TypeHandshake {
+			continue
+		}
+		log.Printf("Process next handshake packet")
+		handshake, err := ReadHandshake(bytes.NewBuffer(payload))
+		if err != nil {
+			return err
+		}
+		if complete, err := c.handshakeContext.continueHandshake(&handshake); err != nil {
+			return err
+		} else if complete {
+			c.handshakeComplete = true
+			return nil
 		}
 	}
 	return nil
 }
 
 func (c *Conn) Read(buffer []byte) (len int, err error) {
+	if !c.handshakeComplete {
+		err := c.handshake()
+		if err != nil {
+			return 0, err
+		}
+	}
 	for {
 		typ, payload, err := c.ReadRecord()
 		if err != nil {
@@ -84,32 +98,43 @@ func (c *Conn) Read(buffer []byte) (len int, err error) {
 }
 
 func (c *Conn) ReadRecord() (typ ContentType, payload []byte, err error) {
-	for {
+	var record *Record
+	if len(c.recordQueue) > 0 {
+		log.Printf("Poping record from queue")
+		record = c.recordQueue[0]
+		c.recordQueue = c.recordQueue[1:]
+	} else {
 		slice := make([]byte, UDP_MAX_SIZE)
 		n, err := c.Conn.Read(slice)
 		if err != nil {
 			return typ, payload, err
 		}
-		if n < 13 {
-			err = InvalidRecordError
-			return typ, payload, err
-		}
-		record, err := ReadRecord(bytes.NewBuffer(slice[:n]))
+		buffer := bytes.NewBuffer(slice[:n])
+		record, err = ReadRecord(buffer)
 		if err != nil {
 			return typ, payload, err
 		}
-		if record.Type == TypeChangeCipherSpec {
-			c.currentReadState = c.pendingReadState
-			c.pendingReadState = SecurityParameters{}
-			continue
+		for buffer.Len() > 0 {
+			log.Printf("Read additional record from packet")
+			r, err := ReadRecord(buffer)
+			if err != nil {
+				return typ, nil, err
+			}
+			c.recordQueue = append(c.recordQueue, r)
 		}
-		authenticated, err := c.DecryptRecord(record.Payload)
-		if err != nil {
-			return typ, payload, err
-		}
-		payload, err = c.RemoveMAC(record.Type, record.Epoch, record.SequenceNumber, authenticated)
-		return record.Type, payload, err
 	}
+	if record.Type == TypeChangeCipherSpec {
+		log.Printf("Received change cipher spec record")
+		c.currentReadState = c.pendingReadState
+		c.pendingReadState = SecurityParameters{}
+		return record.Type, nil, nil
+	}
+	authenticated, err := c.DecryptRecord(record.Payload)
+	if err != nil {
+		return typ, payload, err
+	}
+	payload, err = c.RemoveMAC(record.Type, record.Epoch, record.SequenceNumber, authenticated)
+	return record.Type, payload, err
 }
 
 func (c *Conn) Write(data []byte) (int, error) {
@@ -225,6 +250,9 @@ func padToBlockSize(payload []byte, blockSize int) (padded []byte) {
 
 func checkAndRemovePadding(padded []byte) (payload []byte, err error) {
 	paddingLength := int(padded[len(padded)-1])
+	if paddingLength > len(padded)-1 {
+		return []byte{}, errors.New("Invalid decrypted record")
+	}
 	for i := len(padded) - paddingLength - 1; i < len(padded); i++ {
 		if int(padded[i]) != paddingLength {
 			return []byte{}, errors.New("Invalid padding")

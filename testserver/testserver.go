@@ -17,8 +17,10 @@ func main() {
 	}
 	listener := dtls.NewListener(conn)
 	for {
+		log.Printf("Listening for new connection")
 		conn, err := listener.Accept()
 		if err != nil {
+			log.Printf("Error while accepting new connection: %s", err)
 			return
 		}
 		go (func() {
@@ -26,13 +28,16 @@ func main() {
 				buffer := make([]byte, 64*1024)
 				n, err := conn.Read(buffer)
 				if err != nil {
+					log.Printf("Error while reading data: %s", err)
 					return
 				}
 				_, err = conn.Write(buffer[:n])
 				if err != nil {
+					log.Printf("Error while writing data: %s", err)
 					return
 				}
 			}
 		})()
 	}
+	log.Printf("Server shutting down")
 }

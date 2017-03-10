@@ -3,6 +3,7 @@ package dtls
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 )
 
@@ -17,13 +18,22 @@ func (sh *serverHandshake) beginHandshake() {
 func (sh *serverHandshake) continueHandshake(message *Handshake) (complete bool, err error) {
 	sh.receiveMessage(message)
 	if sh.currentFlight == 1 && sh.isFlightOneComplete() {
-		sh.sendFlightTwo()
-		sh.currentFlight = 3
-		return false, nil
+		err := sh.sendFlightTwo()
+		if err == nil {
+			sh.currentFlight = 3
+		} else {
+			log.Printf("Error while sending flight two: %s", err)
+		}
+		return false, err
 	}
 	if sh.currentFlight == 3 {
+		log.Printf("We're in flight 3, state is\n%+v", sh.baseHandshakeContext)
 		if sh.clientKeyExchange != nil && sh.masterSecret == nil {
+			log.Printf("Handling client key exchange")
 			err := sh.handleKeyExchange()
+			if err != nil {
+				log.Printf("Error while handling client key exchange")
+			}
 			return false, err
 		}
 		complete, err := sh.isFlightThreeComplete()
@@ -41,6 +51,9 @@ func (sh *serverHandshake) isFlightOneComplete() bool {
 
 func (sh *serverHandshake) prepareFlightTwo() error {
 	clientHello, err := ReadHandshakeClientHello(sh.clientHello.Fragment)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to read client hello: %s", err))
+	}
 	cipherSuite := findCommonCipherSuite(clientHello.CipherSuites, CipherSuites)
 	if cipherSuite == nil {
 		return errors.New("Client does not support any cipher suites we support")
@@ -81,6 +94,8 @@ func (sh *serverHandshake) sendFlightTwo() error {
 }
 
 func findCommonCipherSuite(client, server []*CipherSuite) *CipherSuite {
+	log.Printf("Client supports ciphersuites: %+v", client)
+	log.Printf("We support: %+v", server)
 	for _, suiteA := range client {
 		for _, suiteB := range server {
 			if suiteA.id == suiteB.id {
@@ -119,6 +134,7 @@ func (sh *serverHandshake) handleKeyExchange() error {
 	sh.Conn.pendingWriteState.Mac = sh.cipherSuite.mac(clientMAC)
 	sh.Conn.pendingReadState.Cipher = sh.cipherSuite.cipher(serverKey)
 	sh.Conn.pendingReadState.Mac = sh.cipherSuite.mac(serverMAC)
+	logMasterSecret(sh.serverRandom.Bytes(), masterSecret, true)
 	return nil
 }
 

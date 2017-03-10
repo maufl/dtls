@@ -46,7 +46,7 @@ func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, er
 	}
 	clientHello.Cookie = buffer.Next(int(cookieLength))
 
-	numCipherSuites := int(ReadUint16(buffer))
+	numCipherSuites := int(ReadUint16(buffer)) / 2
 	for i := 0; i < numCipherSuites; i++ {
 		cipherSuite, err := ReadCipherSuite(buffer)
 		if err != nil {

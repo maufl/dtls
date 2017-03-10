@@ -97,7 +97,7 @@ func (ch *clientHandshake) prepareFlightThree() {
 	ch.Conn.pendingWriteState.Mac = cipherSuite.mac(clientMAC)
 	ch.Conn.pendingReadState.Cipher = cipherSuite.cipher(serverKey)
 	ch.Conn.pendingReadState.Mac = cipherSuite.mac(serverMAC)
-	logMasterSecret(ch.clientRandom.Bytes(), masterSecret)
+	logMasterSecret(ch.clientRandom.Bytes(), masterSecret, false)
 
 	ch.finishedHash = newFinishedHash()
 	ch.finishedHash.Write(ch.clientHello.Bytes())

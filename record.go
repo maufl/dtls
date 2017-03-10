@@ -135,9 +135,10 @@ func (r Record) Bytes() []byte {
 
 var InvalidRecordError = errors.New("InvalidRecord")
 
-func ReadRecord(buffer *bytes.Buffer) (r Record, err error) {
+func ReadRecord(buffer *bytes.Buffer) (r *Record, err error) {
+	r = &Record{}
 	if buffer.Len() < 13 {
-		return r, errors.New("Not enough bytes to read header")
+		return r, InvalidRecordError
 	}
 	if r.Type, err = ReadContentType(buffer); err != nil {
 		return
