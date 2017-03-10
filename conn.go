@@ -20,7 +20,7 @@ type SecurityParameters struct {
 }
 
 type Conn struct {
-	*net.UDPConn
+	net.Conn
 	sequenceNumber uint64
 	epoch          uint16
 	version        ProtocolVersion
@@ -33,10 +33,10 @@ type Conn struct {
 	handshakeContext handshakeContext
 }
 
-func NewConn(c *net.UDPConn) (*Conn, error) {
+func NewConn(c net.Conn) (*Conn, error) {
 	random := NewRandom()
 	dtlsConn := &Conn{
-		UDPConn: c,
+		Conn:    c,
 		version: DTLS_10,
 	}
 	dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random}}
@@ -81,7 +81,7 @@ func (c *Conn) Read() (data []byte, err error) {
 func (c *Conn) ReadRecord() (typ ContentType, payload []byte, err error) {
 	for {
 		slice := make([]byte, UDP_MAX_SIZE)
-		n, _, err := c.UDPConn.ReadFrom(slice)
+		n, err := c.Conn.Read(slice)
 		if err != nil {
 			return typ, payload, err
 		}
@@ -123,7 +123,7 @@ func (c *Conn) SendRecord(typ ContentType, payload []byte) error {
 	}
 	header := BuildRecordHeader(typ, c.version, epoch, sequenceNumber, uint16(len(encrypted)))
 	recordBytes := append(header, encrypted...)
-	_, err = c.UDPConn.Write(recordBytes)
+	_, err = c.Conn.Write(recordBytes)
 	if err == nil && typ == TypeChangeCipherSpec {
 		c.currentWriteState = c.pendingWriteState
 		c.pendingWriteState = SecurityParameters{}
