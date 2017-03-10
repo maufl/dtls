@@ -122,6 +122,7 @@ func (sh *serverHandshake) handleKeyExchange() error {
 		return err
 	}
 	preMasterSecret, err := sh.keyAgreement.ProcessClientKeyExchange(clientKeyExchange)
+	log.Printf("Premaster secret is %x", preMasterSecret)
 	if err != nil {
 		log.Printf("Error while processing client key exchange: %v", err)
 		return err
@@ -130,11 +131,11 @@ func (sh *serverHandshake) handleKeyExchange() error {
 		keysFromPreMasterSecret(preMasterSecret, sh.clientRandom.Bytes(), sh.serverRandom.Bytes(),
 			sh.cipherSuite.macLen, sh.cipherSuite.keyLen)
 	sh.masterSecret = masterSecret
-	sh.Conn.pendingWriteState.Cipher = sh.cipherSuite.cipher(clientKey)
-	sh.Conn.pendingWriteState.Mac = sh.cipherSuite.mac(clientMAC)
-	sh.Conn.pendingReadState.Cipher = sh.cipherSuite.cipher(serverKey)
-	sh.Conn.pendingReadState.Mac = sh.cipherSuite.mac(serverMAC)
-	logMasterSecret(sh.serverRandom.Bytes(), masterSecret, true)
+	sh.Conn.pendingWriteState.Cipher = sh.cipherSuite.cipher(serverKey)
+	sh.Conn.pendingWriteState.Mac = sh.cipherSuite.mac(serverMAC)
+	sh.Conn.pendingReadState.Cipher = sh.cipherSuite.cipher(clientKey)
+	sh.Conn.pendingReadState.Mac = sh.cipherSuite.mac(clientMAC)
+	logMasterSecret(sh.clientRandom.Bytes(), masterSecret)
 	return nil
 }
 

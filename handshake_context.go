@@ -124,20 +124,14 @@ func (hc *baseHandshakeContext) sendHandshakeMessage(message *Handshake) {
 	hc.Conn.SendRecord(TypeHandshake, message.Bytes())
 }
 
-func logMasterSecret(random, masterSecret []byte, server bool) {
+func logMasterSecret(clientRandom, masterSecret []byte) {
 	f, err := os.OpenFile("/home/maufl/.dtls-secrets", os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		log.Printf("Unable to open log file for DTLS master secret: %s", err)
 		return
 	}
 	defer f.Close()
-	var prefix string
-	if server {
-		prefix = "SERVER_RANDOM"
-	} else {
-		prefix = "CLIENT_RANDOM"
-	}
-	if _, err = f.WriteString(fmt.Sprintf("%s %x %x\n", prefix, random, masterSecret)); err != nil {
+	if _, err = f.WriteString(fmt.Sprintf("CLIENT_RANDOM %x %x\n", clientRandom, masterSecret)); err != nil {
 		log.Printf("Unable to write master secret to log file: %s", err)
 	}
 }
