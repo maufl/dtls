@@ -33,13 +33,17 @@ type Conn struct {
 	handshakeContext handshakeContext
 }
 
-func NewConn(c net.Conn) (*Conn, error) {
+func NewConn(c net.Conn, server bool) (net.Conn, error) {
 	random := NewRandom()
 	dtlsConn := &Conn{
 		Conn:    c,
 		version: DTLS_10,
 	}
-	dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random}}
+	if server {
+		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true}}
+	} else {
+		dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random}}
+	}
 	err := dtlsConn.handshake()
 	return dtlsConn, err
 }
@@ -66,14 +70,15 @@ func (c *Conn) handshake() (err error) {
 	return nil
 }
 
-func (c *Conn) Read() (data []byte, err error) {
+func (c *Conn) Read(buffer []byte) (len int, err error) {
 	for {
 		typ, payload, err := c.ReadRecord()
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
 		if typ == TypeApplicationData {
-			return payload, nil
+			len = copy(buffer, payload)
+			return len, nil
 		}
 	}
 }
@@ -107,11 +112,11 @@ func (c *Conn) ReadRecord() (typ ContentType, payload []byte, err error) {
 	}
 }
 
-func (c *Conn) Write(data []byte) error {
+func (c *Conn) Write(data []byte) (int, error) {
 	return c.SendRecord(TypeApplicationData, data)
 }
 
-func (c *Conn) SendRecord(typ ContentType, payload []byte) error {
+func (c *Conn) SendRecord(typ ContentType, payload []byte) (int, error) {
 	sequenceNumber := c.sequenceNumber
 	epoch := c.epoch
 	c.sequenceNumber += 1
@@ -119,20 +124,20 @@ func (c *Conn) SendRecord(typ ContentType, payload []byte) error {
 	encrypted, err := c.EncryptRecord(authenticated)
 	if err != nil {
 		log.Printf("Error while Encrypting record: %s\n", err)
-		return err
+		return 0, err
 	}
 	header := BuildRecordHeader(typ, c.version, epoch, sequenceNumber, uint16(len(encrypted)))
 	recordBytes := append(header, encrypted...)
-	_, err = c.Conn.Write(recordBytes)
+	n, err := c.Conn.Write(recordBytes)
 	if err == nil && typ == TypeChangeCipherSpec {
 		c.currentWriteState = c.pendingWriteState
 		c.pendingWriteState = SecurityParameters{}
 	}
-	return err
+	return n, err
 }
 
 func (c *Conn) sendChangeCipherSpec() error {
-	err := c.SendRecord(TypeChangeCipherSpec, []byte{1})
+	_, err := c.SendRecord(TypeChangeCipherSpec, []byte{1})
 	if err == nil {
 		c.epoch += 1
 	}

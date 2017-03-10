@@ -11,7 +11,7 @@ type VirtualConn struct {
 	out           net.PacketConn
 	localAddress  net.Addr
 	remoteAddress net.Addr
-	readTimeout   time.Time
+	readDeadline  time.Time
 }
 
 func NewVirtualConn(conn net.PacketConn, local, remote net.Addr) *VirtualConn {
@@ -23,11 +23,15 @@ func NewVirtualConn(conn net.PacketConn, local, remote net.Addr) *VirtualConn {
 	}
 }
 
+func (c *VirtualConn) Receive(b []byte) {
+	c.in <- b
+}
+
 func (c *VirtualConn) Read(b []byte) (n int, err error) {
 	select {
 	case record := <-c.in:
 		return copy(b, record), nil
-	case <-time.After(time.Until(c.readTimeout)):
+	case <-time.After(time.Until(c.readDeadline)):
 		return 0, errors.New("Timeout")
 	}
 }
@@ -54,7 +58,7 @@ func (c *VirtualConn) SetDeadline(t time.Time) (err error) {
 }
 
 func (c *VirtualConn) SetReadDeadline(t time.Time) (err error) {
-	c.readTimeout = t
+	c.readDeadline = t
 	return
 }
 

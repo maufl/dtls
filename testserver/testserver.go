@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/maufl/dtls"
 	"log"
 	"net"
 )
@@ -14,17 +15,24 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to listen on adress: %v\n", err)
 	}
+	listener := dtls.NewListener(conn)
 	for {
-		buffer := make([]byte, 65000)
-		bytes, raddr, err := conn.ReadFrom(buffer)
+		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatalf("Unable to read message: %v\n", err)
+			return
 		}
-		log.Printf("Read message from %v\n", raddr)
-		log.Printf("%v\n", string(buffer[:bytes]))
-		_, err = conn.WriteTo(buffer[:bytes], raddr)
-		if err != nil {
-			log.Fatalf("Unable to write hello message: %v\n", err)
-		}
+		go (func() {
+			for {
+				buffer := make([]byte, 64*1024)
+				n, err := conn.Read(buffer)
+				if err != nil {
+					return
+				}
+				_, err = conn.Write(buffer[:n])
+				if err != nil {
+					return
+				}
+			}
+		})()
 	}
 }
