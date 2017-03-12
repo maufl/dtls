@@ -43,10 +43,10 @@ func NewConn(c net.Conn, server bool) net.Conn {
 		version: DTLS_10,
 	}
 	if server {
-		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true}}
+		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true, handshakeMessageBuffer: make(map[uint16]*HandshakeFragmentList)}}
 	} else {
 		random := NewRandom()
-		dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random}}
+		dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random, handshakeMessageBuffer: make(map[uint16]*HandshakeFragmentList)}}
 	}
 	return dtlsConn
 }

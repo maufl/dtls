@@ -43,6 +43,11 @@ func (hfl *HandshakeFragmentList) InsertFragmentAt(f *Handshake, i int) {
 }
 
 func (hfl *HandshakeFragmentList) IsComplete() bool {
+	if len(hfl.Fragments) == 1 &&
+		hfl.Fragments[0].FragmentOffset == 0 &&
+		hfl.Fragments[0].FragmentLength == hfl.Fragments[0].Length {
+		return true
+	}
 	offset := uint32(0)
 	for _, handshake := range hfl.Fragments {
 		if handshake.FragmentOffset <= offset {
@@ -58,6 +63,11 @@ func (hfl *HandshakeFragmentList) IsComplete() bool {
 }
 
 func (hfl *HandshakeFragmentList) GetCompleteHandshake() *Handshake {
+	if len(hfl.Fragments) == 1 &&
+		hfl.Fragments[0].FragmentOffset == 0 &&
+		hfl.Fragments[0].FragmentLength == hfl.Fragments[0].Length {
+		return hfl.Fragments[0]
+	}
 	h := &Handshake{
 		MsgType:        hfl.MsgType,
 		Length:         hfl.Length,

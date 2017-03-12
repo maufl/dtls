@@ -47,16 +47,42 @@ type baseHandshakeContext struct {
 
 	//Flight 4
 	serverFinished *Handshake
+
+	handshakeMessageBuffer map[uint16]*HandshakeFragmentList
 }
 
 func (hc *baseHandshakeContext) receiveMessage(message *Handshake) {
-	// TODO: Buffer out of order messages
-	if message.MessageSeq != hc.nextReceiveSequenceNumber {
-		log.Printf("Received out of order message, expected %d was %d", hc.nextReceiveSequenceNumber, message.MessageSeq)
+	if message.MessageSeq < hc.nextReceiveSequenceNumber {
+		log.Printf("Received handshake message with lower sequence number than next expected")
 		return
 	}
-	hc.storeMessage(message)
-	hc.nextReceiveSequenceNumber += 1
+	if message.MessageSeq == hc.nextReceiveSequenceNumber &&
+		message.FragmentOffset == 0 &&
+		message.FragmentLength == message.Length {
+		hc.storeMessage(message)
+		hc.nextReceiveSequenceNumber += 1
+	}
+	if hfl, ok := hc.handshakeMessageBuffer[message.MessageSeq]; ok {
+		hfl.InsertFragment(message)
+	} else {
+		hc.handshakeMessageBuffer[message.MessageSeq] = NewHandshakeFragmentList(message)
+	}
+	hc.maybeReceiveNextBufferedMessage()
+}
+
+func (hc *baseHandshakeContext) maybeReceiveNextBufferedMessage() {
+	for {
+		hfl, ok := hc.handshakeMessageBuffer[hc.nextReceiveSequenceNumber]
+		if !ok {
+			return
+		}
+		if !hfl.IsComplete() {
+			return
+		}
+		hc.storeMessage(hfl.GetCompleteHandshake())
+		delete(hc.handshakeMessageBuffer, hc.nextReceiveSequenceNumber)
+		hc.nextReceiveSequenceNumber += 1
+	}
 }
 
 func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
