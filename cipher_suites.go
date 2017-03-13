@@ -19,7 +19,7 @@ import (
 // A cipherSuite is a specific combination of key agreement, cipher and MAC
 // function. All cipher suites currently assume RSA key agreement.
 type CipherSuite struct {
-	id uint16
+	id cipherSuiteId
 	// the lengths, in bytes, of the key material needed for each component.
 	keyLen       int
 	macLen       int
@@ -40,7 +40,7 @@ var CipherSuites = []*CipherSuite{
 
 func (cs CipherSuite) Bytes() []byte {
 	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, cs.id)
+	binary.BigEndian.PutUint16(b, uint16(cs.id))
 	return b
 }
 
@@ -60,7 +60,7 @@ func (cs CipherSuite) String() string {
 func ReadCipherSuite(buffer *bytes.Buffer) (*CipherSuite, error) {
 	id := binary.BigEndian.Uint16(buffer.Next(2))
 	for _, cs := range CipherSuites {
-		if cs.id == id {
+		if uint16(cs.id) == id {
 			return cs, nil
 		}
 	}
@@ -112,11 +112,3 @@ func (s tls10MAC) MAC(seq, typ, version, length, record []byte) []byte {
 	s.h.Write(record)
 	return s.h.Sum(nil)
 }
-
-// A list of the possible cipher suite ids. Taken from
-// http://www.iana.org/assignments/tls-parameters/tls-parameters.xml
-const (
-	TLS_NULL_WITH_NULL_NULL             uint16 = 0x0
-	TLS_DH_anon_WITH_AES_128_CBC_SHA           = 0x0034
-	TLS_DH_anon_WITH_AES_256_CBC_SHA256        = 0x006d
-)

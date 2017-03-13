@@ -10,9 +10,9 @@ Aside from the fact that this implementation is generally not usable, I would al
 ## TODO
 
 * [x] Get encryption and decryption working for AES + SHA
-* [ ] Implement handshake fragment reassembly
+* [x] Implement handshake fragment reassembly
 * [ ] Implement handshake timeout
-* [ ] Handle out of order handshake messages
+* [x] Handle out of order handshake messages
 * [ ] Implement authenticated handshake
 * [ ] Implement alert protocol
 * [ ] Clean up the implementation
