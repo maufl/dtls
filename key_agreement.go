@@ -5,20 +5,20 @@ import (
 	"math/big"
 )
 
-type KeyAgreement interface {
-	ProcessServerKeyExchange(clientRandom, serverRandom Random, serverKeyExchange HandshakeServerKeyExchange) error
-	GenerateClientKeyExchange() ([]byte, HandshakeClientKeyExchange, error)
-	GenerateServerKeyExchange() ([]byte, error)
-	ProcessClientKeyExchange(HandshakeClientKeyExchange) ([]byte, error)
+type keyAgreement interface {
+	processServerKeyExchange(clientRandom, serverRandom random, serverKeyExchange handshakeServerKeyExchange) error
+	generateClientKeyExchange() ([]byte, handshakeClientKeyExchange, error)
+	generateServerKeyExchange() ([]byte, error)
+	processClientKeyExchange(handshakeClientKeyExchange) ([]byte, error)
 }
 
-type DHEKeyAgreement struct {
+type dheKeyAgreement struct {
 	PrivateKey *dhkx.DHKey
 	PublicKey  *dhkx.DHKey
 	Group      *dhkx.DHGroup
 }
 
-func (ka *DHEKeyAgreement) ProcessServerKeyExchange(clientRandom, serverRandom Random, serverKeyExchange HandshakeServerKeyExchange) (err error) {
+func (ka *dheKeyAgreement) processServerKeyExchange(clientRandom, serverRandom random, serverKeyExchange handshakeServerKeyExchange) (err error) {
 	ka.PublicKey = dhkx.NewPublicKey(serverKeyExchange.Params.PublicKey)
 
 	var p, g big.Int
@@ -30,25 +30,25 @@ func (ka *DHEKeyAgreement) ProcessServerKeyExchange(clientRandom, serverRandom R
 	return
 }
 
-func (ka *DHEKeyAgreement) GenerateClientKeyExchange() (preMasterSecret []byte, clientKeyExchange HandshakeClientKeyExchange, err error) {
-	clientKeyExchange.ClientDiffieHellmanPublic.PublicKey = ka.PrivateKey.Bytes()
+func (ka *dheKeyAgreement) generateClientKeyExchange() (preMasterSecret []byte, clientKeyExchange handshakeClientKeyExchange, err error) {
+	clientKeyExchange.clientDiffieHellmanPublic.PublicKey = ka.PrivateKey.Bytes()
 	if key, err := ka.Group.ComputeKey(ka.PublicKey, ka.PrivateKey); err == nil {
 		preMasterSecret = key.Bytes()
 	}
 	return
 }
 
-func (ka *DHEKeyAgreement) GenerateServerKeyExchange() (serverKeyExchange []byte, err error) {
+func (ka *dheKeyAgreement) generateServerKeyExchange() (serverKeyExchange []byte, err error) {
 	if ka.Group, err = dhkx.GetGroup(0); err != nil {
 		return
 	}
 	if ka.PrivateKey, err = ka.Group.GeneratePrivateKey(nil); err != nil {
 		return
 	}
-	return HandshakeServerKeyExchange{Params: ServerDHParams{P: ka.Group.P().Bytes(), G: ka.Group.G().Bytes(), PublicKey: ka.PrivateKey.Bytes()}}.Bytes(), nil
+	return handshakeServerKeyExchange{Params: serverDHParams{P: ka.Group.P().Bytes(), G: ka.Group.G().Bytes(), PublicKey: ka.PrivateKey.Bytes()}}.Bytes(), nil
 }
 
-func (ka *DHEKeyAgreement) ProcessClientKeyExchange(clientKeyExchange HandshakeClientKeyExchange) (preMasterSecret []byte, err error) {
+func (ka *dheKeyAgreement) processClientKeyExchange(clientKeyExchange handshakeClientKeyExchange) (preMasterSecret []byte, err error) {
 	ka.PublicKey = dhkx.NewPublicKey(clientKeyExchange.PublicKey)
 	if key, err := ka.Group.ComputeKey(ka.PublicKey, ka.PrivateKey); err == nil {
 		preMasterSecret = key.Bytes()

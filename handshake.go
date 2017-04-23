@@ -7,49 +7,49 @@ import (
 	"fmt"
 )
 
-type HandshakeType byte
+type handshakeType byte
 
 const (
-	HelloRequest       HandshakeType = 0
-	ClientHello                      = 1
-	ServerHello                      = 2
-	HelloVerifyRequest               = 3
-	Certificate                      = 11
-	ServerKeyExchange                = 12
-	CertificateRequest               = 13
-	ServerHelloDone                  = 14
-	CertificateVerify                = 15
-	ClientKeyExchange                = 16
-	Finished                         = 20
+	helloRequest       handshakeType = 0
+	clientHello                      = 1
+	serverHello                      = 2
+	helloVerifyRequest               = 3
+	certificate                      = 11
+	serverKeyExchange                = 12
+	certificateRequest               = 13
+	serverHelloDone                  = 14
+	certificateVerify                = 15
+	clientKeyExchange                = 16
+	finished                         = 20
 )
 
-func (ht HandshakeType) Bytes() []byte {
+func (ht handshakeType) Bytes() []byte {
 	return []byte{byte(ht)}
 }
 
-func (ht HandshakeType) String() string {
+func (ht handshakeType) String() string {
 	switch ht {
-	case HelloRequest:
+	case helloRequest:
 		return "HelloRequest"
-	case ClientHello:
+	case clientHello:
 		return "ClientHello"
-	case ServerHello:
+	case serverHello:
 		return "ServerHello"
-	case HelloVerifyRequest:
+	case helloVerifyRequest:
 		return "HelloVerifyRequest"
-	case Certificate:
+	case certificate:
 		return "Certificate"
-	case ServerKeyExchange:
+	case serverKeyExchange:
 		return "ServerKeyExchange"
-	case CertificateRequest:
+	case certificateRequest:
 		return "CertificateRequest"
-	case ServerHelloDone:
+	case serverHelloDone:
 		return "ServerHelloDone"
-	case CertificateVerify:
+	case certificateVerify:
 		return "CertificateVerify"
-	case ClientKeyExchange:
+	case clientKeyExchange:
 		return "ClientKeyExchange"
-	case Finished:
+	case finished:
 		return "Finished"
 	default:
 		return "xxx"
@@ -58,41 +58,41 @@ func (ht HandshakeType) String() string {
 
 var InvalidHandshakeType = errors.New("Invalid handshake type")
 
-func ReadHandshakeType(buffer *bytes.Buffer) (HandshakeType, error) {
+func readHandshakeType(buffer *bytes.Buffer) (handshakeType, error) {
 	b, err := buffer.ReadByte()
 	if err != nil {
 		return 255, err
 	}
 	switch b {
 	case 0:
-		return HelloRequest, nil
+		return helloRequest, nil
 	case 1:
-		return ClientHello, nil
+		return clientHello, nil
 	case 2:
-		return ServerHello, nil
+		return serverHello, nil
 	case 3:
-		return HelloVerifyRequest, nil
+		return helloVerifyRequest, nil
 	case 11:
-		return Certificate, nil
+		return certificate, nil
 	case 12:
-		return ServerKeyExchange, nil
+		return serverKeyExchange, nil
 	case 13:
-		return CertificateRequest, nil
+		return certificateRequest, nil
 	case 14:
-		return ServerHelloDone, nil
+		return serverHelloDone, nil
 	case 15:
-		return CertificateVerify, nil
+		return certificateVerify, nil
 	case 16:
-		return ClientKeyExchange, nil
+		return clientKeyExchange, nil
 	case 20:
-		return Finished, nil
+		return finished, nil
 	default:
 		return 0, InvalidHandshakeType
 	}
 }
 
-type Handshake struct {
-	MsgType        HandshakeType
+type handshake struct {
+	MsgType        handshakeType
 	Length         uint32
 	MessageSeq     uint16
 	FragmentOffset uint32
@@ -102,17 +102,17 @@ type Handshake struct {
 
 var InvalidHandshakeError = errors.New("Invalid handshake")
 
-func ReadHandshake(buffer *bytes.Buffer) (h Handshake, err error) {
+func ReadHandshake(buffer *bytes.Buffer) (h handshake, err error) {
 	if buffer.Len() < 12 {
 		return h, errors.New("Buffer does not contain enough bytes to read handshake header")
 	}
-	if h.MsgType, err = ReadHandshakeType(buffer); err != nil {
+	if h.MsgType, err = readHandshakeType(buffer); err != nil {
 		return
 	}
-	h.Length = ReadUint24(buffer)
-	h.MessageSeq = ReadUint16(buffer)
-	h.FragmentOffset = ReadUint24(buffer)
-	h.FragmentLength = ReadUint24(buffer)
+	h.Length = readUint24(buffer)
+	h.MessageSeq = readUint16(buffer)
+	h.FragmentOffset = readUint24(buffer)
+	h.FragmentLength = readUint24(buffer)
 	if buffer.Len() < int(h.FragmentLength) {
 		return h, errors.New("Buffer does not contain all bytes of fragment")
 	}
@@ -120,7 +120,7 @@ func ReadHandshake(buffer *bytes.Buffer) (h Handshake, err error) {
 	return
 }
 
-func (h Handshake) Bytes() []byte {
+func (h handshake) Bytes() []byte {
 	buffer := bytes.Buffer{}
 	buffer.Write(h.MsgType.Bytes())
 	b := make([]byte, 4)
@@ -139,6 +139,6 @@ func (h Handshake) Bytes() []byte {
 	return buffer.Bytes()
 }
 
-func (h Handshake) String() string {
+func (h handshake) String() string {
 	return fmt.Sprintf("Handshake{ Type: %s, Length: %d, MessageSeq: %d, FragmentOffset: %d, FragmentLength: %d, Fragment: %x }", h.MsgType, h.Length, h.MessageSeq, h.FragmentOffset, h.FragmentLength, h.Fragment)
 }

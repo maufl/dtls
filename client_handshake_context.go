@@ -15,9 +15,9 @@ func (ch *clientHandshake) beginHandshake() {
 	ch.currentFlight = 2
 }
 
-func (ch *clientHandshake) continueHandshake(message *Handshake) (complete bool, err error) {
-	if ch.currentFlight == 2 && message.MsgType == HelloVerifyRequest {
-		helloVerifyRequest, err := ReadHandshakeHelloVerifyRequest(message.Fragment)
+func (ch *clientHandshake) continueHandshake(message *handshake) (complete bool, err error) {
+	if ch.currentFlight == 2 && message.MsgType == helloVerifyRequest {
+		helloVerifyRequest, err := readHandshakeHelloVerifyRequest(message.Fragment)
 		if err != nil {
 			panic(err)
 		}
@@ -39,17 +39,17 @@ func (ch *clientHandshake) continueHandshake(message *Handshake) (complete bool,
 }
 
 func (ch *clientHandshake) prepareFlightOne() {
-	clientHello := HandshakeClientHello{
+	cltHello := handshakeClientHello{
 		ClientVersion: DTLS_10,
 		Random:        ch.clientRandom,
 		SessionID:     ch.sessionID,
 		Cookie:        ch.cookie,
-		CipherSuites:  CipherSuites,
-		CompressionMethods: []CompressionMethod{
-			CompressionNone,
+		CipherSuites:  cipherSuites,
+		CompressionMethods: []compressionMethod{
+			compressionNone,
 		},
 	}
-	ch.clientHello = ch.buildNextHandshakeMessage(ClientHello, clientHello.Bytes())
+	ch.clientHello = ch.buildNextHandshakeMessage(clientHello, cltHello.Bytes())
 }
 
 func (ch *clientHandshake) sendFlightOne() {
@@ -63,7 +63,7 @@ func (ch *clientHandshake) isFlightTwoComplete() bool {
 		ch.serverHelloDone != nil
 }
 func (ch *clientHandshake) prepareFlightThree() {
-	serverHello, err := ReadHandshakeServerHello(ch.serverHello.Fragment)
+	serverHello, err := readHandshakeServerHello(ch.serverHello.Fragment)
 	if err != nil {
 		log.Printf("Error while reading server hello: %v", err)
 		return
@@ -71,24 +71,24 @@ func (ch *clientHandshake) prepareFlightThree() {
 	ch.serverRandom = serverHello.Random
 	cipherSuite := serverHello.CipherSuite
 	ch.keyAgreement = cipherSuite.KeyAgreement()
-	ch.Conn.pendingReadState.CompressionMethod = serverHello.CompressionMethod
-	ch.Conn.pendingWriteState.CompressionMethod = serverHello.CompressionMethod
+	ch.Conn.pendingReadState.compressionMethod = serverHello.CompressionMethod
+	ch.Conn.pendingWriteState.compressionMethod = serverHello.CompressionMethod
 	ch.sessionID = serverHello.SessionID
-	serverKeyExchange, err := ReadHandshakeServerKeyExchange(ch.serverKeyExchange.Fragment)
+	serverKeyExchange, err := readHandshakeServerKeyExchange(ch.serverKeyExchange.Fragment)
 	if err != nil {
 		log.Printf("Error while reading server key exchange: %v", err)
 		return
 	}
-	if err = ch.keyAgreement.ProcessServerKeyExchange(ch.clientRandom, ch.serverRandom, serverKeyExchange); err != nil {
+	if err = ch.keyAgreement.processServerKeyExchange(ch.clientRandom, ch.serverRandom, serverKeyExchange); err != nil {
 		log.Printf("Error while processing server key exchange: %v", err)
 		return
 	}
-	preMasterSecret, clientKeyExchange, err := ch.keyAgreement.GenerateClientKeyExchange()
+	preMasterSecret, cltKeyExchange, err := ch.keyAgreement.generateClientKeyExchange()
 	if err != nil {
 		log.Printf("Error while generating client key exchange: %v", err)
 		return
 	}
-	ch.clientKeyExchange = ch.buildNextHandshakeMessage(ClientKeyExchange, clientKeyExchange.Bytes())
+	ch.clientKeyExchange = ch.buildNextHandshakeMessage(clientKeyExchange, cltKeyExchange.Bytes())
 	masterSecret, clientMAC, serverMAC, clientKey, serverKey :=
 		keysFromPreMasterSecret(preMasterSecret, ch.clientRandom.Bytes(), ch.serverRandom.Bytes(),
 			cipherSuite.macLen, cipherSuite.keyLen)
@@ -105,9 +105,9 @@ func (ch *clientHandshake) prepareFlightThree() {
 	ch.finishedHash.Write(ch.serverKeyExchange.Bytes())
 	ch.finishedHash.Write(ch.serverHelloDone.Bytes())
 	ch.finishedHash.Write(ch.clientKeyExchange.Bytes())
-	finishedMessage := new(HandshakeFinished)
+	finishedMessage := new(handshakeFinished)
 	finishedMessage.VerifyData = ch.finishedHash.clientSum(masterSecret)
-	ch.clientFinished = ch.buildNextHandshakeMessage(Finished, finishedMessage.Bytes())
+	ch.clientFinished = ch.buildNextHandshakeMessage(finished, finishedMessage.Bytes())
 }
 
 func (ch *clientHandshake) sendFlightThree() {
@@ -121,7 +121,7 @@ func (ch *clientHandshake) isFlightFourComplete() (bool, error) {
 	if ch.serverFinished == nil {
 		return false, nil
 	}
-	serverFinished, err := ReadHandshakeFinished(ch.serverFinished.Fragment)
+	serverFinished, err := readHandshakeFinished(ch.serverFinished.Fragment)
 	if err != nil {
 		return true, err
 	}

@@ -8,7 +8,7 @@ import (
 
 type handshakeContext interface {
 	beginHandshake()
-	continueHandshake(*Handshake) (bool, error)
+	continueHandshake(*handshake) (bool, error)
 }
 
 type baseHandshakeContext struct {
@@ -20,38 +20,38 @@ type baseHandshakeContext struct {
 	currentFlight             int
 	sessionID                 []byte
 	cookie                    []byte
-	cipherSuite               CipherSuite
-	clientRandom              Random
-	serverRandom              Random
-	keyAgreement              KeyAgreement
+	cipherSuite               cipherSuite
+	clientRandom              random
+	serverRandom              random
+	keyAgreement              keyAgreement
 	masterSecret              []byte
 	finishedHash              finishedHash
 
 	//We omit the pre-flight, i.e. HelloVerify because otherwise we would need to keep state
 	//defeating the purpos of HelloVerify
 	//Flight 1
-	clientHello *Handshake
+	clientHello *handshake
 
 	//Flight 2
-	serverHello        *Handshake
-	serverCertificate  *Handshake
-	serverKeyExchange  *Handshake
-	certificateRequest *Handshake
-	serverHelloDone    *Handshake
+	serverHello        *handshake
+	serverCertificate  *handshake
+	serverKeyExchange  *handshake
+	certificateRequest *handshake
+	serverHelloDone    *handshake
 
 	//Flight 3
-	clientCertificate *Handshake
-	clientKeyExchange *Handshake
-	certificateVerify *Handshake
-	clientFinished    *Handshake
+	clientCertificate *handshake
+	clientKeyExchange *handshake
+	certificateVerify *handshake
+	clientFinished    *handshake
 
 	//Flight 4
-	serverFinished *Handshake
+	serverFinished *handshake
 
-	handshakeMessageBuffer map[uint16]*HandshakeFragmentList
+	handshakeMessageBuffer map[uint16]*handshakeFragmentList
 }
 
-func (hc *baseHandshakeContext) receiveMessage(message *Handshake) {
+func (hc *baseHandshakeContext) receiveMessage(message *handshake) {
 	if message.MessageSeq < hc.nextReceiveSequenceNumber {
 		log.Printf("Received handshake message with lower sequence number than next expected")
 		return
@@ -65,7 +65,7 @@ func (hc *baseHandshakeContext) receiveMessage(message *Handshake) {
 	if hfl, ok := hc.handshakeMessageBuffer[message.MessageSeq]; ok {
 		hfl.InsertFragment(message)
 	} else {
-		hc.handshakeMessageBuffer[message.MessageSeq] = NewHandshakeFragmentList(message)
+		hc.handshakeMessageBuffer[message.MessageSeq] = newHandshakeFragmentList(message)
 	}
 	hc.maybeReceiveNextBufferedMessage()
 }
@@ -85,23 +85,23 @@ func (hc *baseHandshakeContext) maybeReceiveNextBufferedMessage() {
 	}
 }
 
-func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
-	if hc.currentFlight == 1 && message.MsgType == ClientHello {
+func (hc *baseHandshakeContext) storeMessage(message *handshake) {
+	if hc.currentFlight == 1 && message.MsgType == clientHello {
 		hc.clientHello = message
 		return
 		//TODO: handle out of order handshake messages?
 	}
 	if hc.currentFlight == 2 {
 		switch message.MsgType {
-		case ServerHello:
+		case serverHello:
 			hc.serverHello = message
-		case Certificate:
+		case certificate:
 			hc.serverCertificate = message
-		case ServerKeyExchange:
+		case serverKeyExchange:
 			hc.serverKeyExchange = message
-		case CertificateRequest:
+		case certificateRequest:
 			hc.certificateRequest = message
-		case ServerHelloDone:
+		case serverHelloDone:
 			hc.serverHelloDone = message
 		default:
 			log.Printf("Unable to store received handshake message!")
@@ -111,13 +111,13 @@ func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
 	}
 	if hc.currentFlight == 3 {
 		switch message.MsgType {
-		case Certificate:
+		case certificate:
 			hc.clientCertificate = message
-		case ClientKeyExchange:
+		case clientKeyExchange:
 			hc.clientKeyExchange = message
-		case CertificateVerify:
+		case certificateVerify:
 			hc.certificateVerify = message
-		case Finished:
+		case finished:
 			hc.clientFinished = message
 		default:
 			log.Printf("Unable to store received handshake message!")
@@ -125,7 +125,7 @@ func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
 		}
 		return
 	}
-	if hc.currentFlight == 4 && message.MsgType == Finished {
+	if hc.currentFlight == 4 && message.MsgType == finished {
 		hc.serverFinished = message
 		//TODO: handle out of order handshake messages?
 		return
@@ -133,8 +133,8 @@ func (hc *baseHandshakeContext) storeMessage(message *Handshake) {
 	log.Printf("Unable to store received handshake message!")
 }
 
-func (hc *baseHandshakeContext) buildNextHandshakeMessage(typ HandshakeType, handshakeMessage []byte) *Handshake {
-	handshake := &Handshake{
+func (hc *baseHandshakeContext) buildNextHandshakeMessage(typ handshakeType, handshakeMessage []byte) *handshake {
+	hdshk := &handshake{
 		MsgType:        typ,
 		Length:         uint32(len(handshakeMessage)),
 		MessageSeq:     hc.sequenceNumber,
@@ -143,11 +143,11 @@ func (hc *baseHandshakeContext) buildNextHandshakeMessage(typ HandshakeType, han
 		Fragment:       handshakeMessage,
 	}
 	hc.sequenceNumber += 1
-	return handshake
+	return hdshk
 }
 
-func (hc *baseHandshakeContext) sendHandshakeMessage(message *Handshake) {
-	hc.Conn.SendRecord(TypeHandshake, message.Bytes())
+func (hc *baseHandshakeContext) sendHandshakeMessage(message *handshake) {
+	hc.Conn.sendRecord(typeHandshake, message.Bytes())
 }
 
 func logMasterSecret(clientRandom, masterSecret []byte) {

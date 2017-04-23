@@ -5,16 +5,16 @@ import (
 	"fmt"
 )
 
-type HandshakeServerHelloDone struct{}
+type handshakeServerHelloDone struct{}
 
-func ReadHandshakeServerHelloDone(buffer *bytes.Buffer) (HandshakeServerHelloDone, error) {
-	return HandshakeServerHelloDone{}, nil
+func readHandshakeServerHelloDone(buffer *bytes.Buffer) (handshakeServerHelloDone, error) {
+	return handshakeServerHelloDone{}, nil
 }
 
-func (shd HandshakeServerHelloDone) String() string {
+func (shd handshakeServerHelloDone) String() string {
 	return fmt.Sprintf("ServerHelloDone{}")
 }
 
-func (shd HandshakeServerHelloDone) Bytes() []byte {
+func (shd handshakeServerHelloDone) Bytes() []byte {
 	return []byte{}
 }

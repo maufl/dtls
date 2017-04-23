@@ -13,8 +13,8 @@ import (
 
 const UDP_MAX_SIZE = 64 * 1024
 
-type SecurityParameters struct {
-	CompressionMethod
+type securityParameters struct {
+	compressionMethod
 	Cipher cipher.Block
 	Mac    macFunction
 }
@@ -23,17 +23,17 @@ type Conn struct {
 	net.Conn
 	sequenceNumber    uint64
 	epoch             uint16
-	version           ProtocolVersion
+	version           protocolVersion
 	handshakeComplete bool
 
-	currentReadState  SecurityParameters
-	currentWriteState SecurityParameters
-	pendingReadState  SecurityParameters
-	pendingWriteState SecurityParameters
+	currentReadState  securityParameters
+	currentWriteState securityParameters
+	pendingReadState  securityParameters
+	pendingWriteState securityParameters
 
 	handshakeContext handshakeContext
 
-	recordQueue []*Record
+	recordQueue []*record
 }
 
 func NewConn(c net.Conn, server bool) net.Conn {
@@ -43,10 +43,10 @@ func NewConn(c net.Conn, server bool) net.Conn {
 		version: DTLS_10,
 	}
 	if server {
-		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true, handshakeMessageBuffer: make(map[uint16]*HandshakeFragmentList)}}
+		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true, handshakeMessageBuffer: make(map[uint16]*handshakeFragmentList)}}
 	} else {
-		random := NewRandom()
-		dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random, handshakeMessageBuffer: make(map[uint16]*HandshakeFragmentList)}}
+		random := newRandom()
+		dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random, handshakeMessageBuffer: make(map[uint16]*handshakeFragmentList)}}
 	}
 	return dtlsConn
 }
@@ -56,11 +56,11 @@ func (c *Conn) handshake() (err error) {
 	c.handshakeContext.beginHandshake()
 	for {
 		log.Printf("Wait to read record")
-		typ, payload, err := c.ReadRecord()
+		typ, payload, err := c.readRecord()
 		if err != nil {
 			return err
 		}
-		if typ != TypeHandshake {
+		if typ != typeHandshake {
 			continue
 		}
 		log.Printf("Process next handshake packet")
@@ -86,22 +86,22 @@ func (c *Conn) Read(buffer []byte) (len int, err error) {
 		}
 	}
 	for {
-		typ, payload, err := c.ReadRecord()
+		typ, payload, err := c.readRecord()
 		if err != nil {
 			return 0, err
 		}
-		if typ == TypeApplicationData {
+		if typ == typeApplicationData {
 			len = copy(buffer, payload)
 			return len, nil
 		}
 	}
 }
 
-func (c *Conn) ReadRecord() (typ ContentType, payload []byte, err error) {
-	var record *Record
+func (c *Conn) readRecord() (typ contentType, payload []byte, err error) {
+	var rec *record
 	if len(c.recordQueue) > 0 {
 		log.Printf("Poping record from queue")
-		record = c.recordQueue[0]
+		rec = c.recordQueue[0]
 		c.recordQueue = c.recordQueue[1:]
 	} else {
 		slice := make([]byte, UDP_MAX_SIZE)
@@ -110,66 +110,66 @@ func (c *Conn) ReadRecord() (typ ContentType, payload []byte, err error) {
 			return typ, payload, err
 		}
 		buffer := bytes.NewBuffer(slice[:n])
-		record, err = ReadRecord(buffer)
+		rec, err = readRecord(buffer)
 		if err != nil {
 			return typ, payload, err
 		}
 		for buffer.Len() > 0 {
 			log.Printf("Read additional record from packet")
-			r, err := ReadRecord(buffer)
+			r, err := readRecord(buffer)
 			if err != nil {
 				return typ, nil, err
 			}
 			c.recordQueue = append(c.recordQueue, r)
 		}
 	}
-	if record.Type == TypeChangeCipherSpec {
+	if rec.Type == typeChangeCipherSpec {
 		log.Printf("Received change cipher spec record")
 		c.currentReadState = c.pendingReadState
-		c.pendingReadState = SecurityParameters{}
-		return record.Type, nil, nil
+		c.pendingReadState = securityParameters{}
+		return rec.Type, nil, nil
 	}
-	authenticated, err := c.DecryptRecord(record.Payload)
+	authenticated, err := c.decryptRecord(rec.Payload)
 	if err != nil {
 		return typ, payload, err
 	}
-	payload, err = c.RemoveMAC(record.Type, record.Epoch, record.SequenceNumber, authenticated)
-	return record.Type, payload, err
+	payload, err = c.removeMAC(rec.Type, rec.Epoch, rec.SequenceNumber, authenticated)
+	return rec.Type, payload, err
 }
 
 func (c *Conn) Write(data []byte) (int, error) {
-	return c.SendRecord(TypeApplicationData, data)
+	return c.sendRecord(typeApplicationData, data)
 }
 
-func (c *Conn) SendRecord(typ ContentType, payload []byte) (int, error) {
+func (c *Conn) sendRecord(typ contentType, payload []byte) (int, error) {
 	sequenceNumber := c.sequenceNumber
 	epoch := c.epoch
 	c.sequenceNumber += 1
-	authenticated := c.MACRecord(typ, epoch, sequenceNumber, payload)
-	encrypted, err := c.EncryptRecord(authenticated)
+	authenticated := c.macRecord(typ, epoch, sequenceNumber, payload)
+	encrypted, err := c.encryptRecord(authenticated)
 	if err != nil {
 		log.Printf("Error while Encrypting record: %s\n", err)
 		return 0, err
 	}
-	header := BuildRecordHeader(typ, c.version, epoch, sequenceNumber, uint16(len(encrypted)))
+	header := buildRecordHeader(typ, c.version, epoch, sequenceNumber, uint16(len(encrypted)))
 	recordBytes := append(header, encrypted...)
 	n, err := c.Conn.Write(recordBytes)
-	if err == nil && typ == TypeChangeCipherSpec {
+	if err == nil && typ == typeChangeCipherSpec {
 		c.currentWriteState = c.pendingWriteState
-		c.pendingWriteState = SecurityParameters{}
+		c.pendingWriteState = securityParameters{}
 	}
 	return n, err
 }
 
 func (c *Conn) sendChangeCipherSpec() error {
-	_, err := c.SendRecord(TypeChangeCipherSpec, []byte{1})
+	_, err := c.sendRecord(typeChangeCipherSpec, []byte{1})
 	if err == nil {
 		c.epoch += 1
 	}
 	return err
 }
 
-func (c *Conn) MACRecord(typ ContentType, epoch uint16, sequenceNumber uint64, payload []byte) []byte {
+func (c *Conn) macRecord(typ contentType, epoch uint16, sequenceNumber uint64, payload []byte) []byte {
 	if c.currentWriteState.Mac == nil {
 		return payload
 	}
@@ -182,7 +182,7 @@ func (c *Conn) MACRecord(typ ContentType, epoch uint16, sequenceNumber uint64, p
 	return append(payload, mac...)
 }
 
-func (c *Conn) RemoveMAC(typ ContentType, epoch uint16, sequenceNumber uint64, payload []byte) ([]byte, error) {
+func (c *Conn) removeMAC(typ contentType, epoch uint16, sequenceNumber uint64, payload []byte) ([]byte, error) {
 	if c.currentReadState.Mac == nil {
 		return payload, nil
 	}
@@ -201,7 +201,7 @@ func (c *Conn) RemoveMAC(typ ContentType, epoch uint16, sequenceNumber uint64, p
 	return payload, nil
 }
 
-func (c *Conn) EncryptRecord(payload []byte) ([]byte, error) {
+func (c *Conn) encryptRecord(payload []byte) ([]byte, error) {
 	ciph := c.currentWriteState.Cipher
 	if ciph == nil {
 		return payload, nil
@@ -218,7 +218,7 @@ func (c *Conn) EncryptRecord(payload []byte) ([]byte, error) {
 	return encrypted, nil
 }
 
-func (c *Conn) DecryptRecord(payload []byte) ([]byte, error) {
+func (c *Conn) decryptRecord(payload []byte) ([]byte, error) {
 	ciph := c.currentReadState.Cipher
 	if ciph == nil {
 		return payload, nil

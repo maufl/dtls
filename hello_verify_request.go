@@ -5,12 +5,12 @@ import (
 	"fmt"
 )
 
-type HandshakeHelloVerifyRequest struct {
-	ServerVersion ProtocolVersion
+type handshakeHelloVerifyRequest struct {
+	ServerVersion protocolVersion
 	Cookie        []byte
 }
 
-func (hvr HandshakeHelloVerifyRequest) Bytes() []byte {
+func (hvr handshakeHelloVerifyRequest) Bytes() []byte {
 	b := make([]byte, 0, len(hvr.Cookie)+3)
 	b = append(b, hvr.ServerVersion.Bytes()...)
 	b = append(b, byte(len(hvr.Cookie)))
@@ -18,16 +18,16 @@ func (hvr HandshakeHelloVerifyRequest) Bytes() []byte {
 	return b
 }
 
-func (hvr HandshakeHelloVerifyRequest) String() string {
+func (hvr handshakeHelloVerifyRequest) String() string {
 	return fmt.Sprintf("HelloVerifyRequest{ ServerVersion: %s, Cookie: %x }", hvr.ServerVersion, hvr.Cookie)
 }
 
-func ReadHandshakeHelloVerifyRequest(byts []byte) (hvr HandshakeHelloVerifyRequest, err error) {
+func readHandshakeHelloVerifyRequest(byts []byte) (hvr handshakeHelloVerifyRequest, err error) {
 	buffer := bytes.NewBuffer(byts)
 	if buffer.Len() < 3 {
 		return hvr, InvalidHandshakeError
 	}
-	if hvr.ServerVersion, err = ReadProtocolVersion(buffer); err != nil {
+	if hvr.ServerVersion, err = readProtocolVersion(buffer); err != nil {
 		return
 	}
 	cookieLength, err := buffer.ReadByte()

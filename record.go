@@ -7,28 +7,28 @@ import (
 	"fmt"
 )
 
-type ContentType byte
+type contentType byte
 
 const (
-	TypeChangeCipherSpec ContentType = 20
-	TypeAlert                        = 21
-	TypeHandshake                    = 22
-	TypeApplicationData              = 23
+	typeChangeCipherSpec contentType = 20
+	typeAlert                        = 21
+	typeHandshake                    = 22
+	typeApplicationData              = 23
 )
 
-func (ct ContentType) Bytes() []byte {
+func (ct contentType) Bytes() []byte {
 	return []byte{byte(ct)}
 }
 
-func (t ContentType) String() string {
+func (t contentType) String() string {
 	switch t {
-	case TypeChangeCipherSpec:
+	case typeChangeCipherSpec:
 		return "ChangeCipherSpec"
-	case TypeAlert:
+	case typeAlert:
 		return "Alert"
-	case TypeHandshake:
+	case typeHandshake:
 		return "Handshake"
-	case TypeApplicationData:
+	case typeApplicationData:
 		return "ApplicationData"
 	default:
 		return "xxx"
@@ -37,34 +37,34 @@ func (t ContentType) String() string {
 
 var ContentTypeError error = errors.New("Unknown content type")
 
-func ReadContentType(buffer *bytes.Buffer) (ct ContentType, err error) {
+func readContentType(buffer *bytes.Buffer) (ct contentType, err error) {
 	b, err := buffer.ReadByte()
 	if err != nil {
 		return
 	}
 	switch b {
 	case 20:
-		return TypeChangeCipherSpec, nil
+		return typeChangeCipherSpec, nil
 	case 21:
-		return TypeAlert, nil
+		return typeAlert, nil
 	case 22:
-		return TypeHandshake, nil
+		return typeHandshake, nil
 	case 23:
-		return TypeApplicationData, nil
+		return typeApplicationData, nil
 	default:
 		return 255, ContentTypeError
 	}
 }
 
-type ProtocolVersion struct {
-	Major uint8
-	Minor uint8
+type protocolVersion struct {
+	major uint8
+	minor uint8
 }
 
-var DTLS_10 = ProtocolVersion{Major: 254, Minor: 255}
-var DTLS_12 = ProtocolVersion{Major: 254, Minor: 253}
+var DTLS_10 = protocolVersion{major: 254, minor: 255}
+var DTLS_12 = protocolVersion{major: 254, minor: 253}
 
-func (v ProtocolVersion) String() string {
+func (v protocolVersion) String() string {
 	switch v {
 	case DTLS_10:
 		return "1.0"
@@ -75,17 +75,17 @@ func (v ProtocolVersion) String() string {
 	}
 }
 
-func (v ProtocolVersion) Bytes() []byte {
-	return []byte{v.Major, v.Minor}
+func (v protocolVersion) Bytes() []byte {
+	return []byte{v.major, v.minor}
 }
 
 var ProtocolVersionError error = errors.New("Unknown protocol version")
 
-func ReadProtocolVersion(buffer *bytes.Buffer) (pv ProtocolVersion, err error) {
-	if pv.Major, err = buffer.ReadByte(); err != nil {
+func readProtocolVersion(buffer *bytes.Buffer) (pv protocolVersion, err error) {
+	if pv.major, err = buffer.ReadByte(); err != nil {
 		return
 	}
-	if pv.Minor, err = buffer.ReadByte(); err != nil {
+	if pv.minor, err = buffer.ReadByte(); err != nil {
 		return
 	}
 	switch pv {
@@ -98,16 +98,16 @@ func ReadProtocolVersion(buffer *bytes.Buffer) (pv ProtocolVersion, err error) {
 	}
 }
 
-type Record struct {
-	Type           ContentType
-	Version        ProtocolVersion
+type record struct {
+	Type           contentType
+	Version        protocolVersion
 	Epoch          uint16
 	SequenceNumber uint64
 	Length         uint16
 	Payload        []byte
 }
 
-func BuildRecordHeader(typ ContentType, version ProtocolVersion, epoch uint16, sequenceNumber uint64, length uint16) (header []byte) {
+func buildRecordHeader(typ contentType, version protocolVersion, epoch uint16, sequenceNumber uint64, length uint16) (header []byte) {
 	header = make([]byte, 13)
 	header[0] = byte(typ)
 	copy(header[1:], version.Bytes())
@@ -117,7 +117,7 @@ func BuildRecordHeader(typ ContentType, version ProtocolVersion, epoch uint16, s
 	return
 }
 
-func (r Record) Bytes() []byte {
+func (r record) Bytes() []byte {
 	buffer := bytes.Buffer{}
 	buffer.Write(r.Type.Bytes())
 	buffer.Write(r.Version.Bytes())
@@ -135,20 +135,20 @@ func (r Record) Bytes() []byte {
 
 var InvalidRecordError = errors.New("InvalidRecord")
 
-func ReadRecord(buffer *bytes.Buffer) (r *Record, err error) {
-	r = &Record{}
+func readRecord(buffer *bytes.Buffer) (r *record, err error) {
+	r = &record{}
 	if buffer.Len() < 13 {
 		return r, InvalidRecordError
 	}
-	if r.Type, err = ReadContentType(buffer); err != nil {
+	if r.Type, err = readContentType(buffer); err != nil {
 		return
 	}
-	if r.Version, err = ReadProtocolVersion(buffer); err != nil {
+	if r.Version, err = readProtocolVersion(buffer); err != nil {
 		return
 	}
-	r.Epoch = ReadUint16(buffer)
-	r.SequenceNumber = ReadUint48(buffer)
-	r.Length = ReadUint16(buffer)
+	r.Epoch = readUint16(buffer)
+	r.SequenceNumber = readUint48(buffer)
+	r.Length = readUint16(buffer)
 	if buffer.Len() < int(r.Length) {
 		return r, InvalidRecordError
 	}
@@ -156,6 +156,6 @@ func ReadRecord(buffer *bytes.Buffer) (r *Record, err error) {
 	return
 }
 
-func (r Record) String() string {
+func (r record) String() string {
 	return fmt.Sprintf("Record{ Type: %s, ProtocolVersion: %s, Epoch: %d, SequenceNumber: %d, Length: %d, \n\t%s\n }", r.Type, r.Version, r.Epoch, r.SequenceNumber, r.Length, r.Payload)
 }

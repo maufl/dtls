@@ -4,23 +4,23 @@ import (
 	"errors"
 )
 
-type HandshakeFragmentList struct {
-	MsgType    HandshakeType
+type handshakeFragmentList struct {
+	MsgType    handshakeType
 	Length     uint32
 	MessageSeq uint16
-	Fragments  []*Handshake
+	Fragments  []*handshake
 }
 
-func NewHandshakeFragmentList(h *Handshake) *HandshakeFragmentList {
-	return &HandshakeFragmentList{
+func newHandshakeFragmentList(h *handshake) *handshakeFragmentList {
+	return &handshakeFragmentList{
 		MsgType:    h.MsgType,
 		Length:     h.Length,
 		MessageSeq: h.MessageSeq,
-		Fragments:  []*Handshake{h},
+		Fragments:  []*handshake{h},
 	}
 }
 
-func (hfl *HandshakeFragmentList) InsertFragment(newHandshake *Handshake) error {
+func (hfl *handshakeFragmentList) InsertFragment(newHandshake *handshake) error {
 	if newHandshake.MsgType != hfl.MsgType ||
 		newHandshake.Length != hfl.Length ||
 		newHandshake.MessageSeq != hfl.MessageSeq {
@@ -36,13 +36,13 @@ func (hfl *HandshakeFragmentList) InsertFragment(newHandshake *Handshake) error 
 	return nil
 }
 
-func (hfl *HandshakeFragmentList) InsertFragmentAt(f *Handshake, i int) {
+func (hfl *handshakeFragmentList) InsertFragmentAt(f *handshake, i int) {
 	hfl.Fragments = append(hfl.Fragments, nil)
 	copy(hfl.Fragments[i+1:], hfl.Fragments[i:])
 	hfl.Fragments[i] = f
 }
 
-func (hfl *HandshakeFragmentList) IsComplete() bool {
+func (hfl *handshakeFragmentList) IsComplete() bool {
 	if len(hfl.Fragments) == 1 &&
 		hfl.Fragments[0].FragmentOffset == 0 &&
 		hfl.Fragments[0].FragmentLength == hfl.Fragments[0].Length {
@@ -62,13 +62,13 @@ func (hfl *HandshakeFragmentList) IsComplete() bool {
 	return false
 }
 
-func (hfl *HandshakeFragmentList) GetCompleteHandshake() *Handshake {
+func (hfl *handshakeFragmentList) GetCompleteHandshake() *handshake {
 	if len(hfl.Fragments) == 1 &&
 		hfl.Fragments[0].FragmentOffset == 0 &&
 		hfl.Fragments[0].FragmentLength == hfl.Fragments[0].Length {
 		return hfl.Fragments[0]
 	}
-	h := &Handshake{
+	h := &handshake{
 		MsgType:        hfl.MsgType,
 		Length:         hfl.Length,
 		MessageSeq:     hfl.MessageSeq,

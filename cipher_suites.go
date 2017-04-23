@@ -18,13 +18,13 @@ import (
 
 // A cipherSuite is a specific combination of key agreement, cipher and MAC
 // function. All cipher suites currently assume RSA key agreement.
-type CipherSuite struct {
+type cipherSuite struct {
 	id cipherSuiteId
 	// the lengths, in bytes, of the key material needed for each component.
 	keyLen       int
 	macLen       int
 	ivLen        int
-	KeyAgreement func() KeyAgreement
+	KeyAgreement func() keyAgreement
 	// If elliptic is set, a server will only consider this ciphersuite if
 	// the ClientHello indicated that the client supports an elliptic curve
 	// and point format that we can handle.
@@ -33,18 +33,18 @@ type CipherSuite struct {
 	mac      func(macKey []byte) macFunction
 }
 
-var CipherSuites = []*CipherSuite{
+var cipherSuites = []*cipherSuite{
 	{TLS_DH_anon_WITH_AES_128_CBC_SHA, 16, 20, 16, dheKA, false, cipherAES, macSHA1},
 	{TLS_DH_anon_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, false, cipherAES, macSHA256},
 }
 
-func (cs CipherSuite) Bytes() []byte {
+func (cs cipherSuite) Bytes() []byte {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, uint16(cs.id))
 	return b
 }
 
-func (cs CipherSuite) String() string {
+func (cs cipherSuite) String() string {
 	switch cs.id {
 	case TLS_NULL_WITH_NULL_NULL:
 		return "TLS_NULL_WITH_NULL_NULL"
@@ -57,20 +57,20 @@ func (cs CipherSuite) String() string {
 	}
 }
 
-func ReadCipherSuite(buffer *bytes.Buffer) (*CipherSuite, error) {
+func readCipherSuite(buffer *bytes.Buffer) (*cipherSuite, error) {
 	id := binary.BigEndian.Uint16(buffer.Next(2))
-	for _, cs := range CipherSuites {
+	for _, cs := range cipherSuites {
 		if uint16(cs.id) == id {
 			return cs, nil
 		}
 	}
-	return &CipherSuite{}, InvalidCipherSuite
+	return &cipherSuite{}, InvalidCipherSuite
 }
 
 var InvalidCipherSuite = errors.New("Invalid cipher suite")
 
-func dheKA() KeyAgreement {
-	return new(DHEKeyAgreement)
+func dheKA() keyAgreement {
+	return new(dheKeyAgreement)
 }
 
 func cipherAES(key []byte) cipher.Block {

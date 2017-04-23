@@ -1,7 +1,7 @@
 package dtls
 
-type ChangeCipherSpec [1]byte
+type changeCipherSpec [1]byte
 
-func (ccs ChangeCipherSpec) Bytes() []byte {
+func (ccs changeCipherSpec) Bytes() []byte {
 	return ccs[:]
 }

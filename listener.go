@@ -8,13 +8,13 @@ import (
 type Listener struct {
 	net.PacketConn
 
-	connections map[string]*VirtualConn
+	connections map[string]*virtualConn
 }
 
 func NewListener(c net.PacketConn) *Listener {
 	return &Listener{
 		PacketConn:  c,
-		connections: make(map[string]*VirtualConn),
+		connections: make(map[string]*virtualConn),
 	}
 }
 
@@ -33,7 +33,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 			continue
 		}
 		log.Printf("Creating new connection for packet from %s", addr)
-		virtualConn := NewVirtualConn(l, l.LocalAddr(), addr)
+		virtualConn := newVirtualConn(l, l.LocalAddr(), addr)
 		go virtualConn.Receive(buffer[:n])
 		l.connections[addr.String()] = virtualConn
 		return NewConn(virtualConn, true), nil

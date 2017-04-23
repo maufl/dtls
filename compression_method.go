@@ -5,27 +5,27 @@ import (
 	"errors"
 )
 
-type CompressionMethod byte
+type compressionMethod byte
 
-func (cm CompressionMethod) Bytes() []byte {
+func (cm compressionMethod) Bytes() []byte {
 	return []byte{byte(cm)}
 }
 
 const (
-	CompressionNone CompressionMethod = 0
+	compressionNone compressionMethod = 0
 )
 
-func ReadCompressionMethod(buffer *bytes.Buffer) (CompressionMethod, error) {
+func readCompressionMethod(buffer *bytes.Buffer) (compressionMethod, error) {
 	if b, err := buffer.ReadByte(); err == nil && b == 0 {
-		return CompressionNone, nil
+		return compressionNone, nil
 	} else if err != nil {
 		return 0, err
 	}
 	return 0, InvalidCompressionError
 }
 
-func (cm CompressionMethod) String() string {
-	if cm == CompressionNone {
+func (cm compressionMethod) String() string {
+	if cm == compressionNone {
 		return "None"
 	}
 	return "xxx"

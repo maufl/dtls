@@ -7,22 +7,22 @@ import (
 	"fmt"
 )
 
-type HandshakeClientHello struct {
-	ClientVersion      ProtocolVersion
-	Random             Random
+type handshakeClientHello struct {
+	ClientVersion      protocolVersion
+	Random             random
 	SessionID          []byte
 	Cookie             []byte
-	CipherSuites       []*CipherSuite
-	CompressionMethods []CompressionMethod
-	Extensions         []Extension
+	CipherSuites       []*cipherSuite
+	CompressionMethods []compressionMethod
+	Extensions         []extension
 }
 
-func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, err error) {
+func readHandshakeClientHello(data []byte) (clientHello handshakeClientHello, err error) {
 	buffer := bytes.NewBuffer(data)
-	if clientHello.ClientVersion, err = ReadProtocolVersion(buffer); err != nil {
+	if clientHello.ClientVersion, err = readProtocolVersion(buffer); err != nil {
 		return
 	}
-	if clientHello.Random, err = ReadRandom(buffer); err != nil {
+	if clientHello.Random, err = readRandom(buffer); err != nil {
 		return
 	}
 
@@ -46,9 +46,9 @@ func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, er
 	}
 	clientHello.Cookie = buffer.Next(int(cookieLength))
 
-	numCipherSuites := int(ReadUint16(buffer)) / 2
+	numCipherSuites := int(readUint16(buffer)) / 2
 	for i := 0; i < numCipherSuites; i++ {
-		cipherSuite, err := ReadCipherSuite(buffer)
+		cipherSuite, err := readCipherSuite(buffer)
 		if err != nil {
 			return clientHello, err
 		}
@@ -60,7 +60,7 @@ func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, er
 		return
 	}
 	for i := 0; i < int(numCompressionMethods); i++ {
-		compressionMethod, err := ReadCompressionMethod(buffer)
+		compressionMethod, err := readCompressionMethod(buffer)
 		if err != nil {
 			return clientHello, err
 		}
@@ -70,11 +70,11 @@ func ReadHandshakeClientHello(data []byte) (clientHello HandshakeClientHello, er
 	return
 }
 
-func (ch HandshakeClientHello) String() string {
+func (ch handshakeClientHello) String() string {
 	return fmt.Sprintf("ClientHello{ ClientVersion: %s, Random: %s, SessionID: %x, Cookie: %x }", ch.ClientVersion, ch.Random, ch.SessionID, ch.Cookie)
 }
 
-func (ch HandshakeClientHello) Bytes() []byte {
+func (ch handshakeClientHello) Bytes() []byte {
 	buffer := bytes.Buffer{}
 	buffer.Write(ch.ClientVersion.Bytes())
 	buffer.Write(ch.Random.Bytes())

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type VirtualConn struct {
+type virtualConn struct {
 	in            chan []byte
 	out           net.PacketConn
 	localAddress  net.Addr
@@ -13,8 +13,8 @@ type VirtualConn struct {
 	readDeadline  time.Time
 }
 
-func NewVirtualConn(conn net.PacketConn, local, remote net.Addr) *VirtualConn {
-	return &VirtualConn{
+func newVirtualConn(conn net.PacketConn, local, remote net.Addr) *virtualConn {
+	return &virtualConn{
 		in:            make(chan []byte),
 		out:           conn,
 		localAddress:  local,
@@ -22,41 +22,41 @@ func NewVirtualConn(conn net.PacketConn, local, remote net.Addr) *VirtualConn {
 	}
 }
 
-func (c *VirtualConn) Receive(b []byte) {
+func (c *virtualConn) Receive(b []byte) {
 	c.in <- b
 }
 
-func (c *VirtualConn) Read(b []byte) (n int, err error) {
+func (c *virtualConn) Read(b []byte) (n int, err error) {
 	record := <-c.in
 	return copy(b, record), nil
 }
 
-func (c *VirtualConn) Write(b []byte) (n int, err error) {
+func (c *virtualConn) Write(b []byte) (n int, err error) {
 	return c.out.WriteTo(b, c.remoteAddress)
 }
 
-func (c *VirtualConn) Close() error {
+func (c *virtualConn) Close() error {
 	close(c.in)
 	return nil
 }
 
-func (c *VirtualConn) LocalAddr() net.Addr {
+func (c *virtualConn) LocalAddr() net.Addr {
 	return c.localAddress
 }
 
-func (c *VirtualConn) RemoteAddr() net.Addr {
+func (c *virtualConn) RemoteAddr() net.Addr {
 	return c.remoteAddress
 }
 
-func (c *VirtualConn) SetDeadline(t time.Time) (err error) {
+func (c *virtualConn) SetDeadline(t time.Time) (err error) {
 	return c.SetReadDeadline(t)
 }
 
-func (c *VirtualConn) SetReadDeadline(t time.Time) (err error) {
+func (c *virtualConn) SetReadDeadline(t time.Time) (err error) {
 	c.readDeadline = t
 	return
 }
 
-func (c *VirtualConn) SetWriteDeadline(t time.Time) (err error) {
+func (c *virtualConn) SetWriteDeadline(t time.Time) (err error) {
 	return
 }

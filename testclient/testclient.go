@@ -16,17 +16,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Unable to connect to remote addr: %v\n", err)
 	}
-	dtlsConn, err := dtls.NewConn(conn)
-	if err != nil {
-		log.Fatalf("Error while opening connection: %s", err)
-	}
+	dtlsConn := dtls.NewConn(conn, false)
 	for {
 		dtlsConn.Write([]byte("Hello World"))
-		bytes, err := dtlsConn.Read()
+		buffer := make([]byte, dtls.UDP_MAX_SIZE)
+		n, err := dtlsConn.Read(buffer)
 		if err != nil {
 			log.Fatalf("Error while reading: %s", err)
 		}
-		log.Printf("Read data: %s", string(bytes))
+		log.Printf("Read data: %s", string(buffer[:n]))
 		time.Sleep(1 * time.Second)
 	}
 }

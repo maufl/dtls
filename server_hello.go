@@ -6,20 +6,20 @@ import (
 	"fmt"
 )
 
-type HandshakeServerHello struct {
-	ServerVersion     ProtocolVersion
-	Random            Random
+type handshakeServerHello struct {
+	ServerVersion     protocolVersion
+	Random            random
 	SessionID         []byte
-	CipherSuite       *CipherSuite
-	CompressionMethod CompressionMethod
-	Extensions        []Extension
+	CipherSuite       *cipherSuite
+	CompressionMethod compressionMethod
+	Extensions        []extension
 }
 
-func (sh HandshakeServerHello) String() string {
+func (sh handshakeServerHello) String() string {
 	return fmt.Sprintf("ServerHello{ ServerVersion: %s, Random: %s, SessionID: %x, CipherSuite: %s, CompressionMethod: %s }", sh.ServerVersion, sh.Random, sh.SessionID, sh.CipherSuite, sh.CompressionMethod)
 }
 
-func (sh HandshakeServerHello) Bytes() []byte {
+func (sh handshakeServerHello) Bytes() []byte {
 	buffer := &bytes.Buffer{}
 	buffer.Write(sh.ServerVersion.Bytes())
 	buffer.Write(sh.Random.Bytes())
@@ -33,15 +33,15 @@ func (sh HandshakeServerHello) Bytes() []byte {
 	return buffer.Bytes()
 }
 
-func ReadHandshakeServerHello(byts []byte) (hsh HandshakeServerHello, err error) {
+func readHandshakeServerHello(byts []byte) (hsh handshakeServerHello, err error) {
 	buffer := bytes.NewBuffer(byts)
 	if buffer.Len() < 35 {
 		return hsh, errors.New("Buffer does not contain all bytes of server hello")
 	}
-	if hsh.ServerVersion, err = ReadProtocolVersion(buffer); err != nil {
+	if hsh.ServerVersion, err = readProtocolVersion(buffer); err != nil {
 		return
 	}
-	if hsh.Random, err = ReadRandom(buffer); err != nil {
+	if hsh.Random, err = readRandom(buffer); err != nil {
 		return
 	}
 	sessionIdLength, err := buffer.ReadByte()
@@ -52,18 +52,18 @@ func ReadHandshakeServerHello(byts []byte) (hsh HandshakeServerHello, err error)
 		return hsh, InvalidHandshakeError
 	}
 	hsh.SessionID = buffer.Next(int(sessionIdLength))
-	if hsh.CipherSuite, err = ReadCipherSuite(buffer); err != nil {
+	if hsh.CipherSuite, err = readCipherSuite(buffer); err != nil {
 		return
 	}
-	if hsh.CompressionMethod, err = ReadCompressionMethod(buffer); err != nil {
+	if hsh.CompressionMethod, err = readCompressionMethod(buffer); err != nil {
 		return
 	}
 	if buffer.Len() > 2 {
 		// TODO: does this field exist if there are no extensions?
-		numExtensions := ReadUint16(buffer)
-		hsh.Extensions = make([]Extension, int(numExtensions))
+		numExtensions := readUint16(buffer)
+		hsh.Extensions = make([]extension, int(numExtensions))
 		for i := 0; i < int(numExtensions); i++ {
-			if hsh.Extensions[i], err = ReadExtension(buffer); err != nil {
+			if hsh.Extensions[i], err = readExtension(buffer); err != nil {
 				return
 			}
 		}

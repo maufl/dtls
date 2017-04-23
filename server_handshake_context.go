@@ -15,7 +15,7 @@ func (sh *serverHandshake) beginHandshake() {
 	sh.currentFlight = 1
 }
 
-func (sh *serverHandshake) continueHandshake(message *Handshake) (complete bool, err error) {
+func (sh *serverHandshake) continueHandshake(message *handshake) (complete bool, err error) {
 	sh.receiveMessage(message)
 	if sh.currentFlight == 1 && sh.isFlightOneComplete() {
 		err := sh.sendFlightTwo()
@@ -50,11 +50,11 @@ func (sh *serverHandshake) isFlightOneComplete() bool {
 }
 
 func (sh *serverHandshake) prepareFlightTwo() error {
-	clientHello, err := ReadHandshakeClientHello(sh.clientHello.Fragment)
+	clientHello, err := readHandshakeClientHello(sh.clientHello.Fragment)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Failed to read client hello: %s", err))
 	}
-	cipherSuite := findCommonCipherSuite(clientHello.CipherSuites, CipherSuites)
+	cipherSuite := findCommonCipherSuite(clientHello.CipherSuites, cipherSuites)
 	if cipherSuite == nil {
 		return errors.New("Client does not support any cipher suites we support")
 	}
@@ -65,21 +65,21 @@ func (sh *serverHandshake) prepareFlightTwo() error {
 		return errors.New("Client does not support any compression methods we support")
 	}
 	sh.clientRandom = clientHello.Random
-	sh.serverRandom = NewRandom()
+	sh.serverRandom = newRandom()
 
-	serverHello := HandshakeServerHello{
+	srvHello := handshakeServerHello{
 		ServerVersion:     DTLS_10,
 		Random:            sh.serverRandom,
 		CipherSuite:       cipherSuite,
 		CompressionMethod: compressionMethod,
 	}
-	sh.serverHello = sh.buildNextHandshakeMessage(ServerHello, serverHello.Bytes())
-	serverKeyExchange, err := sh.keyAgreement.GenerateServerKeyExchange()
+	sh.serverHello = sh.buildNextHandshakeMessage(serverHello, srvHello.Bytes())
+	srvKeyExchange, err := sh.keyAgreement.generateServerKeyExchange()
 	if err != nil {
 		return err
 	}
-	sh.serverKeyExchange = sh.buildNextHandshakeMessage(ServerKeyExchange, serverKeyExchange)
-	sh.serverHelloDone = sh.buildNextHandshakeMessage(ServerHelloDone, []byte{})
+	sh.serverKeyExchange = sh.buildNextHandshakeMessage(serverKeyExchange, srvKeyExchange)
+	sh.serverHelloDone = sh.buildNextHandshakeMessage(serverHelloDone, []byte{})
 	return nil
 }
 
@@ -93,7 +93,7 @@ func (sh *serverHandshake) sendFlightTwo() error {
 	return nil
 }
 
-func findCommonCipherSuite(client, server []*CipherSuite) *CipherSuite {
+func findCommonCipherSuite(client, server []*cipherSuite) *cipherSuite {
 	log.Printf("Client supports ciphersuites: %+v", client)
 	log.Printf("We support: %+v", server)
 	for _, suiteA := range client {
@@ -106,22 +106,22 @@ func findCommonCipherSuite(client, server []*CipherSuite) *CipherSuite {
 	return nil
 }
 
-func findCommonCompressionMethod(methods []CompressionMethod) (CompressionMethod, bool) {
+func findCommonCompressionMethod(methods []compressionMethod) (compressionMethod, bool) {
 	for _, method := range methods {
-		if method == CompressionNone {
-			return CompressionNone, true
+		if method == compressionNone {
+			return compressionNone, true
 		}
 	}
 	return 255, false
 }
 
 func (sh *serverHandshake) handleKeyExchange() error {
-	clientKeyExchange, err := ReadClientKeyExchange(sh.clientKeyExchange.Fragment)
+	clientKeyExchange, err := readClientKeyExchange(sh.clientKeyExchange.Fragment)
 	if err != nil {
 		log.Printf("Error while reading client key exchange: %v", err)
 		return err
 	}
-	preMasterSecret, err := sh.keyAgreement.ProcessClientKeyExchange(clientKeyExchange)
+	preMasterSecret, err := sh.keyAgreement.processClientKeyExchange(clientKeyExchange)
 	log.Printf("Premaster secret is %x", preMasterSecret)
 	if err != nil {
 		log.Printf("Error while processing client key exchange: %v", err)
@@ -143,7 +143,7 @@ func (sh *serverHandshake) isFlightThreeComplete() (complete bool, err error) {
 	if sh.clientFinished == nil {
 		return false, nil
 	}
-	clientFinished, err := ReadHandshakeFinished(sh.clientFinished.Fragment)
+	clientFinished, err := readHandshakeFinished(sh.clientFinished.Fragment)
 	if err != nil {
 		return true, err
 	}
@@ -161,8 +161,8 @@ func (sh *serverHandshake) isFlightThreeComplete() (complete bool, err error) {
 
 func (sh *serverHandshake) prepareFlightFour() {
 	sh.finishedHash.Write(sh.clientFinished.Bytes())
-	serverFinished := &HandshakeFinished{VerifyData: sh.finishedHash.serverSum(sh.masterSecret)}
-	sh.serverFinished = sh.buildNextHandshakeMessage(Finished, serverFinished.Bytes())
+	serverFinished := &handshakeFinished{VerifyData: sh.finishedHash.serverSum(sh.masterSecret)}
+	sh.serverFinished = sh.buildNextHandshakeMessage(finished, serverFinished.Bytes())
 }
 
 func (sh *serverHandshake) sendFlightFour() {
