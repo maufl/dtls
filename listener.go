@@ -29,7 +29,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 		}
 		if conn, ok := l.connections[addr.String()]; ok {
 			log.Printf("Forwarding packet to virtual connection")
-			go conn.Receive(buffer[:n])
+			conn.Receive(buffer[:n])
 			continue
 		}
 		log.Printf("Creating new connection for packet from %s", addr)

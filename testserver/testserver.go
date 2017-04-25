@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:10000")
+	addr, err := net.ResolveUDPAddr("udp", "[fe80::8471:57ff:fe48:9ee2%server0]:5556")
 	if err != nil {
 		log.Fatalf("Unable to resolve address: %v\n", err)
 	}

@@ -12,6 +12,7 @@ Aside from the fact that this implementation is generally not usable, I would al
 * [x] Get encryption and decryption working for AES + SHA
 * [x] Implement handshake fragment reassembly
 * [ ] Implement handshake timeout
+* [ ] Send multiple records in single datagram if possible
 * [x] Handle out of order handshake messages
 * [ ] Implement authenticated handshake
 * [ ] Implement alert protocol

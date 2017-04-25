@@ -28,7 +28,7 @@ type baseHandshakeContext struct {
 	finishedHash              finishedHash
 
 	//We omit the pre-flight, i.e. HelloVerify because otherwise we would need to keep state
-	//defeating the purpos of HelloVerify
+	//defeating the purpose of HelloVerify
 	//Flight 1
 	clientHello *handshake
 

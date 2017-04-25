@@ -102,7 +102,7 @@ type handshake struct {
 
 var InvalidHandshakeError = errors.New("Invalid handshake")
 
-func ReadHandshake(buffer *bytes.Buffer) (h handshake, err error) {
+func readHandshake(buffer *bytes.Buffer) (h handshake, err error) {
 	if buffer.Len() < 12 {
 		return h, errors.New("Buffer does not contain enough bytes to read handshake header")
 	}

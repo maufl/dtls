@@ -8,11 +8,15 @@ import (
 )
 
 func main() {
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:5556")
+	laddr, err := net.ResolveUDPAddr("udp", "[fe80::1cce:99ff:fe67:3645%client0]:5556")
+	if err != nil {
+		log.Fatalf("Unable to resolve local address: %s\n", err)
+	}
+	raddr, err := net.ResolveUDPAddr("udp", "[fe80::8471:57ff:fe48:9ee2%client0]:5556")
 	if err != nil {
 		log.Fatalf("Unable to resolve remote address: %v\n", err)
 	}
-	conn, err := net.DialUDP("udp", nil, addr)
+	conn, err := net.DialUDP("udp", laddr, raddr)
 	if err != nil {
 		log.Fatalf("Unable to connect to remote addr: %v\n", err)
 	}

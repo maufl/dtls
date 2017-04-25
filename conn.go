@@ -64,7 +64,8 @@ func (c *Conn) handshake() (err error) {
 			continue
 		}
 		log.Printf("Process next handshake packet")
-		handshake, err := ReadHandshake(bytes.NewBuffer(payload))
+		log.Printf("Handshake record is %x", payload)
+		handshake, err := readHandshake(bytes.NewBuffer(payload))
 		if err != nil {
 			return err
 		}
@@ -138,6 +139,12 @@ func (c *Conn) readRecord() (typ contentType, payload []byte, err error) {
 }
 
 func (c *Conn) Write(data []byte) (int, error) {
+	if !c.handshakeComplete {
+		err := c.handshake()
+		if err != nil {
+			return 0, err
+		}
+	}
 	return c.sendRecord(typeApplicationData, data)
 }
 
