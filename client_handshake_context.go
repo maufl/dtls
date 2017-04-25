@@ -13,6 +13,7 @@ type clientHandshake struct {
 func (ch *clientHandshake) beginHandshake() {
 	ch.sendFlightOne()
 	ch.currentFlight = 2
+	ch.timeout = newTimeout(ch.resendLastFlight)
 }
 
 func (ch *clientHandshake) continueHandshake(message *handshake) (complete bool, err error) {
@@ -28,14 +29,40 @@ func (ch *clientHandshake) continueHandshake(message *handshake) (complete bool,
 		ch.receiveMessage(message)
 	}
 	if ch.currentFlight == 2 && ch.isFlightTwoComplete() {
+		ch.timeout.stop()
 		ch.sendFlightThree()
 		ch.currentFlight = 4
+		ch.timeout.restart()
 		return false, nil
 	}
 	if ch.currentFlight == 4 {
-		return ch.isFlightFourComplete()
+		complete, err := ch.isFlightFourComplete()
+		if complete || err != nil {
+			ch.timeout.stop()
+		}
+		return complete, err
 	}
 	return false, nil
+}
+
+func (ch *clientHandshake) resendLastFlight() {
+	if ch.currentFlight == 2 {
+		ch.serverHello = nil
+		ch.serverCertificate = nil
+		ch.serverKeyExchange = nil
+		ch.certificateRequest = nil
+		ch.serverHelloDone = nil
+		ch.sendHandshakeMessage(ch.clientHello)
+		ch.timeout.resetIncrease()
+	} else if ch.currentFlight == 4 {
+		ch.serverFinished = nil
+		ch.Conn.pendingWriteState = ch.Conn.currentWriteState
+		ch.Conn.currentWriteState = securityParameters{}
+		ch.sendHandshakeMessage(ch.clientKeyExchange)
+		ch.Conn.sendChangeCipherSpec()
+		ch.sendHandshakeMessage(ch.clientFinished)
+		ch.timeout.resetIncrease()
+	}
 }
 
 func (ch *clientHandshake) prepareFlightOne() {

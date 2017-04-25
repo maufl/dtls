@@ -21,6 +21,7 @@ func (sh *serverHandshake) continueHandshake(message *handshake) (complete bool,
 		err := sh.sendFlightTwo()
 		if err == nil {
 			sh.currentFlight = 3
+			sh.timeout = newTimeout(sh.resendLastFlight)
 		} else {
 			log.Printf("Error while sending flight two: %s", err)
 		}
@@ -39,10 +40,17 @@ func (sh *serverHandshake) continueHandshake(message *handshake) (complete bool,
 		complete, err := sh.isFlightThreeComplete()
 		if complete && err == nil {
 			sh.sendFlightFour()
+
 		}
 		return complete, err
 	}
 	return false, nil
+}
+
+func (sh *serverHandshake) resendLastFlight() {
+	if sh.currentFlight == 3 {
+
+	}
 }
 
 func (sh *serverHandshake) isFlightOneComplete() bool {

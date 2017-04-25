@@ -4,7 +4,36 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 )
+
+type timeout struct {
+	timer    *time.Timer
+	duration time.Duration
+}
+
+func newTimeout(f func()) *timeout {
+	return &timeout{
+		timer:    time.AfterFunc(time.Second, f),
+		duration: time.Second,
+	}
+}
+
+func (t *timeout) resetIncrease() {
+	if t.duration < 30*time.Second {
+		t.duration = t.duration * 2
+	}
+	t.timer.Reset(t.duration)
+}
+
+func (t *timeout) stop() {
+	t.timer.Stop()
+}
+
+func (t *timeout) restart() {
+	t.duration = time.Second
+	t.timer.Reset(t.duration)
+}
 
 type handshakeContext interface {
 	beginHandshake()
@@ -49,6 +78,8 @@ type baseHandshakeContext struct {
 	serverFinished *handshake
 
 	handshakeMessageBuffer map[uint16]*handshakeFragmentList
+
+	timeout *timeout
 }
 
 func (hc *baseHandshakeContext) receiveMessage(message *handshake) {
