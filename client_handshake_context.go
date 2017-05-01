@@ -40,7 +40,7 @@ func (ch *clientHandshake) continueHandshake(message *handshake) (complete bool,
 
 func (ch *clientHandshake) prepareFlightOne() {
 	cltHello := handshakeClientHello{
-		ClientVersion: DTLS_10,
+		ClientVersion: ch.Conn.version,
 		Random:        ch.clientRandom,
 		SessionID:     ch.sessionID,
 		Cookie:        ch.cookie,
@@ -90,7 +90,7 @@ func (ch *clientHandshake) prepareFlightThree() {
 	}
 	ch.clientKeyExchange = ch.buildNextHandshakeMessage(clientKeyExchange, cltKeyExchange.Bytes())
 	masterSecret, clientMAC, serverMAC, clientKey, serverKey :=
-		keysFromPreMasterSecret(preMasterSecret, ch.clientRandom.Bytes(), ch.serverRandom.Bytes(),
+		keysFromPreMasterSecret(ch.Conn.version, preMasterSecret, ch.clientRandom.Bytes(), ch.serverRandom.Bytes(),
 			cipherSuite.macLen, cipherSuite.keyLen)
 	ch.masterSecret = masterSecret
 	ch.Conn.pendingWriteState.Cipher = cipherSuite.cipher(clientKey)
@@ -106,7 +106,11 @@ func (ch *clientHandshake) prepareFlightThree() {
 	ch.finishedHash.Write(ch.serverHelloDone.Bytes())
 	ch.finishedHash.Write(ch.clientKeyExchange.Bytes())
 	finishedMessage := new(handshakeFinished)
-	finishedMessage.VerifyData = ch.finishedHash.clientSum(masterSecret)
+	if ch.Conn.version == DTLS_10 {
+		finishedMessage.VerifyData = ch.finishedHash.clientSum10(masterSecret)
+	} else if ch.Conn.version == DTLS_12 {
+		finishedMessage.VerifyData = ch.finishedHash.clientSum12(masterSecret)
+	}
 	ch.clientFinished = ch.buildNextHandshakeMessage(finished, finishedMessage.Bytes())
 }
 
@@ -126,8 +130,13 @@ func (ch *clientHandshake) isFlightFourComplete() (bool, error) {
 		return true, err
 	}
 	ch.finishedHash.Write(ch.clientFinished.Bytes())
-	if !bytes.Equal(serverFinished.VerifyData, ch.finishedHash.serverSum(ch.masterSecret)) {
+	if ch.Conn.version == DTLS_10 && !bytes.Equal(serverFinished.VerifyData, ch.finishedHash.serverSum10(ch.masterSecret)) {
 		err = errors.New("Server sent incorrect verify data")
+	} else if ch.Conn.version == DTLS_12 && !bytes.Equal(serverFinished.VerifyData, ch.finishedHash.serverSum12(ch.masterSecret)) {
+		err = errors.New("Server sent incorrect verify data")
+	} else if ch.Conn.version != DTLS_10 && ch.Conn.version != DTLS_12 {
+		// TODO: This should never happen
+		err = errors.New("Unsupported version ...")
 	}
 	return true, err
 }

@@ -68,7 +68,7 @@ func (sh *serverHandshake) prepareFlightTwo() error {
 	sh.serverRandom = newRandom()
 
 	srvHello := handshakeServerHello{
-		ServerVersion:     DTLS_10,
+		ServerVersion:     sh.Conn.version,
 		Random:            sh.serverRandom,
 		CipherSuite:       cipherSuite,
 		CompressionMethod: compressionMethod,
@@ -128,7 +128,7 @@ func (sh *serverHandshake) handleKeyExchange() error {
 		return err
 	}
 	masterSecret, clientMAC, serverMAC, clientKey, serverKey :=
-		keysFromPreMasterSecret(preMasterSecret, sh.clientRandom.Bytes(), sh.serverRandom.Bytes(),
+		keysFromPreMasterSecret(sh.Conn.version, preMasterSecret, sh.clientRandom.Bytes(), sh.serverRandom.Bytes(),
 			sh.cipherSuite.macLen, sh.cipherSuite.keyLen)
 	sh.masterSecret = masterSecret
 	sh.Conn.pendingWriteState.Cipher = sh.cipherSuite.cipher(serverKey)
@@ -153,15 +153,21 @@ func (sh *serverHandshake) isFlightThreeComplete() (complete bool, err error) {
 	sh.finishedHash.Write(sh.serverKeyExchange.Bytes())
 	sh.finishedHash.Write(sh.serverHelloDone.Bytes())
 	sh.finishedHash.Write(sh.clientKeyExchange.Bytes())
-	if !bytes.Equal(clientFinished.VerifyData, sh.finishedHash.clientSum(sh.masterSecret)) {
-		err = errors.New("Server sent incorrect verify data")
+	if sh.Conn.version == DTLS_10 && !bytes.Equal(clientFinished.VerifyData, sh.finishedHash.clientSum10(sh.masterSecret)) {
+		err = errors.New("Client sent incorrect verify data")
+	} else if sh.Conn.version == DTLS_12 && !bytes.Equal(clientFinished.VerifyData, sh.finishedHash.clientSum12(sh.masterSecret)) {
+		err = errors.New("Client sent incorrect verify data")
 	}
 	return true, err
 }
 
 func (sh *serverHandshake) prepareFlightFour() {
 	sh.finishedHash.Write(sh.clientFinished.Bytes())
-	serverFinished := &handshakeFinished{VerifyData: sh.finishedHash.serverSum(sh.masterSecret)}
+	if sh.Conn.version == DTLS_10 {
+		serverFinished := &handshakeFinished{VerifyData: sh.finishedHash.serverSum10(sh.masterSecret)}
+	} else if sh.Conn.version == DTLS_12 {
+		serverFinished := &handshakeFinished{VerifyData: sh.finishedHash.serverSum12(sh.masterSecret)}
+	}
 	sh.serverFinished = sh.buildNextHandshakeMessage(finished, serverFinished.Bytes())
 }
 

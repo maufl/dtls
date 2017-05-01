@@ -40,7 +40,7 @@ func NewConn(c net.Conn, server bool) net.Conn {
 	log.Printf("Opening new DTLS conenction")
 	dtlsConn := &Conn{
 		Conn:    c,
-		version: DTLS_10,
+		version: DTLS_12,
 	}
 	if server {
 		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true, handshakeMessageBuffer: make(map[uint16]*handshakeFragmentList)}}

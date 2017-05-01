@@ -5,9 +5,11 @@
 package dtls
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
+	"crypto/sha256"
 	"hash"
 )
 
@@ -62,6 +64,13 @@ func pRF10(result, secret, label, seed []byte) {
 	}
 }
 
+func pRF12(result, secret, label, seed []byte) {
+	labelAndSeed := make([]byte, len(label)+len(seed))
+	copy(labelAndSeed, label)
+	copy(labelAndSeed[len(label):], seed)
+	pHash(result, secret, labelAndSeed, sha256.New)
+}
+
 const (
 	tlsRandomLength      = 32 // Length of a random nonce in TLS 1.1.
 	masterSecretLength   = 48 // Length of a master secret in TLS 1.1.
@@ -76,8 +85,11 @@ var serverFinishedLabel = []byte("server finished")
 // keysFromPreMasterSecret generates the connection keys from the pre master
 // secret, given the lengths of the MAC key, cipher key and IV, as defined in
 // RFC 2246, section 6.3.
-func keysFromPreMasterSecret(preMasterSecret, clientRandom, serverRandom []byte, macLen, keyLen int) (masterSecret, clientMAC, serverMAC, clientKey, serverKey []byte) {
+func keysFromPreMasterSecret(version protocolVersion, preMasterSecret, clientRandom, serverRandom []byte, macLen, keyLen int) (masterSecret, clientMAC, serverMAC, clientKey, serverKey []byte) {
 	prf := pRF10
+	if version == DTLS_12 {
+		prf = pRF12
+	}
 
 	var seed [tlsRandomLength * 2]byte
 	copy(seed[0:len(clientRandom)], clientRandom)
@@ -102,24 +114,13 @@ func keysFromPreMasterSecret(preMasterSecret, clientRandom, serverRandom []byte,
 }
 
 func newFinishedHash() finishedHash {
-	return finishedHash{md5.New(), sha1.New(), md5.New(), sha1.New()}
+	return finishedHash{Buffer: bytes.Buffer{}}
 }
 
 // A finishedHash calculates the hash of a set of handshake messages suitable
 // for including in a Finished message.
 type finishedHash struct {
-	clientMD5  hash.Hash
-	clientSHA1 hash.Hash
-	serverMD5  hash.Hash
-	serverSHA1 hash.Hash
-}
-
-func (h finishedHash) Write(msg []byte) (n int, err error) {
-	h.clientMD5.Write(msg)
-	h.clientSHA1.Write(msg)
-	h.serverMD5.Write(msg)
-	h.serverSHA1.Write(msg)
-	return len(msg), nil
+	bytes.Buffer
 }
 
 // finishedSum10 calculates the contents of the verify_data member of a TLSv1
@@ -134,18 +135,46 @@ func finishedSum10(md5, sha1, label, masterSecret []byte) []byte {
 	return out
 }
 
-// clientSum returns the contents of the verify_data member of a client's
-// Finished message.
-func (h finishedHash) clientSum(masterSecret []byte) []byte {
-	md5 := h.clientMD5.Sum(nil)
-	sha1 := h.clientSHA1.Sum(nil)
-	return finishedSum10(md5, sha1, clientFinishedLabel, masterSecret)
+func finishedSum12(hash, label, masterSecret []byte) []byte {
+	out := make([]byte, finishedVerifyLength)
+	pRF12(out, masterSecret, label, hash)
+	return out
 }
 
-// serverSum returns the contents of the verify_data member of a server's
+// clientSum10 returns the contents of the verify_data member of a client's
 // Finished message.
-func (h finishedHash) serverSum(masterSecret []byte) []byte {
-	md5 := h.serverMD5.Sum(nil)
-	sha1 := h.serverSHA1.Sum(nil)
-	return finishedSum10(md5, sha1, serverFinishedLabel, masterSecret)
+func (h finishedHash) clientSum10(masterSecret []byte) []byte {
+	md5 := md5.New()
+	md5.Write(h.Bytes())
+	md5Digest := md5.Sum(nil)
+	sha1 := sha1.New()
+	sha1.Write(h.Bytes())
+	sha1Digest := sha1.Sum(nil)
+	return finishedSum10(md5Digest, sha1Digest, clientFinishedLabel, masterSecret)
+}
+
+// serverSum10 returns the contents of the verify_data member of a server's
+// Finished message.
+func (h finishedHash) serverSum10(masterSecret []byte) []byte {
+	md5 := md5.New()
+	md5.Write(h.Bytes())
+	md5Digest := md5.Sum(nil)
+	sha1 := sha1.New()
+	sha1.Write(h.Bytes())
+	sha1Digest := sha1.Sum(nil)
+	return finishedSum10(md5Digest, sha1Digest, serverFinishedLabel, masterSecret)
+}
+
+func (h finishedHash) clientSum12(masterSecret []byte) []byte {
+	sha256 := sha256.New()
+	sha256.Write(h.Bytes())
+	sha256Digest := sha256.Sum(nil)
+	return finishedSum12(sha256Digest, clientFinishedLabel, masterSecret)
+}
+
+func (h finishedHash) serverSum12(masterSecret []byte) []byte {
+	sha256 := sha256.New()
+	sha256.Write(h.Bytes())
+	sha256Digest := sha256.Sum(nil)
+	return finishedSum12(sha256Digest, serverFinishedLabel, masterSecret)
 }
