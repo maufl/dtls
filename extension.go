@@ -15,13 +15,7 @@ func (et extensionType) Bytes() []byte {
 }
 
 func readExtensionType(buffer *bytes.Buffer) (extensionType, error) {
-	n := readUint16(buffer)
-	switch n {
-	case 13:
-		return extensionSignatureAlgorithms, nil
-	default:
-		return 0, InvalidExtensionTypeError
-	}
+	return extensionType(readUint16(buffer)), nil
 }
 
 var InvalidExtensionTypeError = errors.New("Invalid extension type")

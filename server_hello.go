@@ -33,6 +33,15 @@ func (sh handshakeServerHello) Bytes() []byte {
 	return buffer.Bytes()
 }
 
+func (sh handshakeServerHello) HasExtension(e *extension) bool {
+	for _, extension := range sh.Extensions {
+		if extension.Type == e.Type && bytes.Equal(extension.Data, e.Data) {
+			return true
+		}
+	}
+	return false
+}
+
 func readHandshakeServerHello(byts []byte) (hsh handshakeServerHello, err error) {
 	buffer := bytes.NewBuffer(byts)
 	if buffer.Len() < 35 {

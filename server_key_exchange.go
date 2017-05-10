@@ -44,14 +44,21 @@ func (sdhp serverDHParams) Bytes() []byte {
 }
 
 type handshakeServerKeyExchange struct {
-	Params serverDHParams
+	Params       serverDHParams
+	SignedParams digitallySigned
 }
 
 func readHandshakeServerKeyExchange(byts []byte) (ske handshakeServerKeyExchange, err error) {
 	buffer := bytes.NewBuffer(byts)
+	if buffer.Len() == 0 {
+		return
+	}
 	ske.Params, err = readServerDHParams(buffer)
 	if err != nil {
 		panic("Unparsable server key exchange message")
+	}
+	if buffer.Len() > 0 {
+		ske.SignedParams, err = readDigitallySigned(buffer)
 	}
 	return
 }

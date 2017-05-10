@@ -28,16 +28,17 @@ type cipherSuite struct {
 	// If elliptic is set, a server will only consider this ciphersuite if
 	// the ClientHello indicated that the client supports an elliptic curve
 	// and point format that we can handle.
-	elliptic bool
-	cipher   func(key []byte) cipher.Block
-	mac      func(macKey []byte) macFunction
+	signedKeyExchange bool
+	elliptic          bool
+	cipher            func(key []byte) cipher.Block
+	mac               func(macKey []byte) macFunction
 }
 
 var cipherSuites = []*cipherSuite{
-	{TLS_DH_anon_WITH_AES_128_CBC_SHA, 16, 20, 16, dheKA, false, cipherAES, macSHA1},
-	{TLS_DH_anon_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, false, cipherAES, macSHA256},
-	{TLS_DHE_RSA_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, false, cipherAES, macSHA256},
-	{TLS_DHE_RSA_WITH_AES_256_CBC_SHA, 32, 32, 16, dheKA, false, cipherAES, macSHA1},
+	{TLS_DH_anon_WITH_AES_128_CBC_SHA, 16, 20, 16, dheKA, false, false, cipherAES, macSHA1},
+	{TLS_DH_anon_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, false, false, cipherAES, macSHA256},
+	{TLS_DHE_RSA_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, true, false, cipherAES, macSHA256},
+	{TLS_DHE_RSA_WITH_AES_256_CBC_SHA, 32, 32, 16, dheKA, true, false, cipherAES, macSHA1},
 }
 
 func (cs cipherSuite) Bytes() []byte {

@@ -3,6 +3,8 @@ package dtls
 import (
 	"bytes"
 	"errors"
+	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/packet"
 	"log"
 )
 
@@ -64,6 +66,32 @@ func (ch *clientHandshake) isFlightTwoComplete() bool {
 		ch.serverKeyExchange != nil &&
 		ch.serverHelloDone != nil
 }
+
+func (ch *clientHandshake) verifyKeyExchange(serverHello handshakeServerHello, certificate []byte, serverKeyExchange handshakeServerKeyExchange) error {
+	signedContent := append(append(ch.clientRandom.Bytes(), ch.serverRandom.Bytes()...), serverKeyExchange.Params.Bytes()...)
+	if serverHello.HasExtension(serverExtensionCertificateTypeOpenPGP) {
+		return ch.verifyOpenPGPKeyExchange(signedContent, certificate)
+	}
+	// TODO error out on not implemented
+	return nil
+}
+
+func (ch *clientHandshake) verifyOpenPGPKeyExchange(signedContent, certificate []byte) error {
+	openPgpCertificate, err := readOpenpgpCertificate(bytes.NewBuffer(certificate))
+	if err != nil {
+		log.Printf("Error while parsing openpgp certificate")
+		return err
+	}
+	entity, err := openpgp.ReadEntity(packet.NewReader(bytes.NewBuffer(openPgpCertificate.subkeyCert.cert)))
+	if err != nil {
+		log.Printf("Error while reading openpgp entity: %s", err)
+		return err
+	}
+	log.Printf("Entity: %+v", entity)
+	return nil
+
+}
+
 func (ch *clientHandshake) prepareFlightThree() {
 	serverHello, err := readHandshakeServerHello(ch.serverHello.Fragment)
 	if err != nil {
@@ -80,6 +108,16 @@ func (ch *clientHandshake) prepareFlightThree() {
 	if err != nil {
 		log.Printf("Error while reading server key exchange: %v", err)
 		return
+	}
+	if cipherSuite.signedKeyExchange {
+		if ch.serverCertificate == nil {
+			log.Printf("Server key exchange should be authenticated but no certificate was presented")
+			return
+		}
+		if err := ch.verifyKeyExchange(serverHello, ch.serverCertificate.Fragment, serverKeyExchange); err != nil {
+			log.Printf("Failed to verify server key exchange: %s", err)
+			return
+		}
 	}
 	if err = ch.keyAgreement.processServerKeyExchange(ch.clientRandom, ch.serverRandom, serverKeyExchange); err != nil {
 		log.Printf("Error while processing server key exchange: %v", err)
