@@ -12,7 +12,7 @@ type handshakeServerHello struct {
 	SessionID         []byte
 	CipherSuite       *cipherSuite
 	CompressionMethod compressionMethod
-	Extensions        []extension
+	Extensions        []*extension
 }
 
 func (sh handshakeServerHello) String() string {
@@ -60,12 +60,17 @@ func readHandshakeServerHello(byts []byte) (hsh handshakeServerHello, err error)
 	}
 	if buffer.Len() > 2 {
 		// TODO: does this field exist if there are no extensions?
-		numExtensions := readUint16(buffer)
-		hsh.Extensions = make([]extension, int(numExtensions))
-		for i := 0; i < int(numExtensions); i++ {
-			if hsh.Extensions[i], err = readExtension(buffer); err != nil {
-				return
+		sizeExtensions := int(readUint16(buffer))
+		if buffer.Len() != sizeExtensions {
+			// TODO alert decode error
+		}
+		hsh.Extensions = make([]*extension, 0)
+		for buffer.Len() > 0 {
+			extension, err := readExtension(buffer)
+			if err != nil {
+				//TODO alert decode error
 			}
+			hsh.Extensions = append(hsh.Extensions, extension)
 		}
 	}
 	return

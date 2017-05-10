@@ -43,10 +43,25 @@ func NewConn(c net.Conn, server bool) net.Conn {
 		version: DTLS_12,
 	}
 	if server {
-		dtlsConn.handshakeContext = &serverHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: true, handshakeMessageBuffer: make(map[uint16]*handshakeFragmentList)}}
+		dtlsConn.handshakeContext = &serverHandshake{
+			baseHandshakeContext{
+				Conn:                   dtlsConn,
+				isServer:               true,
+				handshakeMessageBuffer: make(map[uint16]*handshakeFragmentList),
+			},
+		}
 	} else {
-		random := newRandom()
-		dtlsConn.handshakeContext = &clientHandshake{baseHandshakeContext{Conn: dtlsConn, isServer: false, clientRandom: random, handshakeMessageBuffer: make(map[uint16]*handshakeFragmentList)}}
+		dtlsConn.handshakeContext = &clientHandshake{
+			baseHandshakeContext: baseHandshakeContext{
+				Conn:                   dtlsConn,
+				isServer:               false,
+				clientRandom:           newRandom(),
+				handshakeMessageBuffer: make(map[uint16]*handshakeFragmentList),
+			},
+			extensions: []*extension{
+				clientExtensionCertificateTypeOpenPGP,
+			},
+		}
 	}
 	return dtlsConn
 }

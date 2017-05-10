@@ -14,7 +14,7 @@ type handshakeClientHello struct {
 	Cookie             []byte
 	CipherSuites       []*cipherSuite
 	CompressionMethods []compressionMethod
-	Extensions         []extension
+	Extensions         []*extension
 }
 
 func readHandshakeClientHello(data []byte) (clientHello handshakeClientHello, err error) {
@@ -66,6 +66,20 @@ func readHandshakeClientHello(data []byte) (clientHello handshakeClientHello, er
 		}
 		clientHello.CompressionMethods = append(clientHello.CompressionMethods, compressionMethod)
 	}
+	if buffer.Len() >= 2 {
+		clientHello.Extensions = make([]*extension, 0)
+		extensionsSize := int(readUint16(buffer))
+		if extensionsSize != buffer.Len() {
+			//TODO: alert decode_error
+		}
+		for buffer.Len() > 0 {
+			extension, err := readExtension(buffer)
+			if err != nil {
+				//TODO: alert  decode_error
+			}
+			clientHello.Extensions = append(clientHello.Extensions, extension)
+		}
+	}
 	//TODO: Extensions
 	return
 }
@@ -93,8 +107,13 @@ func (ch handshakeClientHello) Bytes() []byte {
 	for _, compressionMethods := range ch.CompressionMethods {
 		buffer.Write(compressionMethods.Bytes())
 	}
+	extensionBuffer := make([]byte, 0)
 	for _, extension := range ch.Extensions {
-		buffer.Write(extension.Bytes())
+		extensionBuffer = append(extensionBuffer, extension.Bytes()...)
 	}
+	b = make([]byte, 2)
+	binary.BigEndian.PutUint16(b, uint16(len(extensionBuffer)))
+	buffer.Write(b)
+	buffer.Write(extensionBuffer)
 	return buffer.Bytes()
 }

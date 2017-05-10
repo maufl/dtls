@@ -36,6 +36,8 @@ type cipherSuite struct {
 var cipherSuites = []*cipherSuite{
 	{TLS_DH_anon_WITH_AES_128_CBC_SHA, 16, 20, 16, dheKA, false, cipherAES, macSHA1},
 	{TLS_DH_anon_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, false, cipherAES, macSHA256},
+	{TLS_DHE_RSA_WITH_AES_256_CBC_SHA256, 32, 32, 16, dheKA, false, cipherAES, macSHA256},
+	{TLS_DHE_RSA_WITH_AES_256_CBC_SHA, 32, 32, 16, dheKA, false, cipherAES, macSHA1},
 }
 
 func (cs cipherSuite) Bytes() []byte {

@@ -8,6 +8,7 @@ import (
 
 type clientHandshake struct {
 	baseHandshakeContext
+	extensions []*extension
 }
 
 func (ch *clientHandshake) beginHandshake() {
@@ -48,6 +49,7 @@ func (ch *clientHandshake) prepareFlightOne() {
 		CompressionMethods: []compressionMethod{
 			compressionNone,
 		},
+		Extensions: ch.extensions,
 	}
 	ch.clientHello = ch.buildNextHandshakeMessage(clientHello, cltHello.Bytes())
 }

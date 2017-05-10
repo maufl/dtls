@@ -163,11 +163,13 @@ func (sh *serverHandshake) isFlightThreeComplete() (complete bool, err error) {
 
 func (sh *serverHandshake) prepareFlightFour() {
 	sh.finishedHash.Write(sh.clientFinished.Bytes())
+	var serverFinished *handshakeFinished
 	if sh.Conn.version == DTLS_10 {
-		serverFinished := &handshakeFinished{VerifyData: sh.finishedHash.serverSum10(sh.masterSecret)}
+		serverFinished = &handshakeFinished{VerifyData: sh.finishedHash.serverSum10(sh.masterSecret)}
 	} else if sh.Conn.version == DTLS_12 {
-		serverFinished := &handshakeFinished{VerifyData: sh.finishedHash.serverSum12(sh.masterSecret)}
+		serverFinished = &handshakeFinished{VerifyData: sh.finishedHash.serverSum12(sh.masterSecret)}
 	}
+	// TODO: else case
 	sh.serverFinished = sh.buildNextHandshakeMessage(finished, serverFinished.Bytes())
 }
 
